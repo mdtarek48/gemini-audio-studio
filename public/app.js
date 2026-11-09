@@ -128,47 +128,67 @@ function setupEventListeners() {
     elements.stopAllBtn.addEventListener('click', handleStopAll);
   }
 
-  // Toggle API Key visibility
-  elements.toggleKeyVisibility.addEventListener('click', () => {
-    const isPassword = elements.apiKeyInput.type === 'password';
-    elements.apiKeyInput.type = isPassword ? 'text' : 'password';
-    elements.eyeIcon.setAttribute('data-lucide', isPassword ? 'eye-off' : 'eye');
-    if (window.lucide) window.lucide.createIcons();
-  });
+  // Toggle API Key visibility (if element exists)
+  if (elements.toggleKeyVisibility) {
+    elements.toggleKeyVisibility.addEventListener('click', () => {
+      const isPassword = elements.apiKeyInput.type === 'password';
+      elements.apiKeyInput.type = isPassword ? 'text' : 'password';
+      if (elements.eyeIcon) elements.eyeIcon.setAttribute('data-lucide', isPassword ? 'eye-off' : 'eye');
+      if (window.lucide) window.lucide.createIcons();
+    });
+  }
 
   // Voice change
-  elements.voiceSelect.addEventListener('change', (e) => {
-    state.voice = e.target.value;
-    localStorage.setItem('gemini_voice', state.voice);
-    showToast(`ভয়েস পরিবর্তন করে "${state.voice}" করা হয়েছে।`, 'info');
-  });
+  if (elements.voiceSelect) {
+    elements.voiceSelect.addEventListener('change', (e) => {
+      state.voice = e.target.value;
+      localStorage.setItem('gemini_voice', state.voice);
+      showToast(`ভয়েস পরিবর্তন করে "${state.voice}" করা হয়েছে।`, 'info');
+    });
+  }
 
   // Model change
-  elements.modelInput.addEventListener('change', (e) => {
-    state.model = e.target.value.trim() || 'gemini-3.8-flash-tts';
-    localStorage.setItem('gemini_model', state.model);
-  });
+  if (elements.modelInput) {
+    elements.modelInput.addEventListener('change', (e) => {
+      state.model = e.target.value.trim() || 'gemini-3.8-flash-tts';
+      localStorage.setItem('gemini_model', state.model);
+    });
+  }
 
-  elements.resetModelBtn.addEventListener('click', () => {
-    state.model = 'gemini-3.8-flash-tts';
-    elements.modelInput.value = 'gemini-3.8-flash-tts';
-    localStorage.setItem('gemini_model', 'gemini-3.8-flash-tts');
-    showToast('মডেল রিসেট হয়ে gemini-3.8-flash-tts হয়েছে।', 'info');
-  });
+  if (elements.resetModelBtn) {
+    elements.resetModelBtn.addEventListener('click', () => {
+      state.model = 'gemini-3.8-flash-tts';
+      elements.modelInput.value = 'gemini-3.8-flash-tts';
+      localStorage.setItem('gemini_model', 'gemini-3.8-flash-tts');
+      showToast('মডেল রিসেট হয়ে gemini-3.8-flash-tts হয়েছে।', 'info');
+    });
+  }
 
-  // Main text input events
+  // Main text input events (Instant split on input, paste, and change)
   let splitDebounceTimer = null;
-  elements.mainTextInput.addEventListener('input', () => {
-    updateTextStats();
-    clearTimeout(splitDebounceTimer);
-    splitDebounceTimer = setTimeout(() => {
-      splitText();
-    }, 400);
-  });
+  if (elements.mainTextInput) {
+    const triggerInstantSplit = () => {
+      updateTextStats();
+      clearTimeout(splitDebounceTimer);
+      splitDebounceTimer = setTimeout(() => {
+        splitText();
+      }, 200);
+    };
 
-  elements.linesPerBoxInput.addEventListener('change', () => {
-    splitText();
-  });
+    elements.mainTextInput.addEventListener('input', triggerInstantSplit);
+    elements.mainTextInput.addEventListener('change', triggerInstantSplit);
+    elements.mainTextInput.addEventListener('paste', () => {
+      setTimeout(() => {
+        updateTextStats();
+        splitText();
+      }, 50);
+    });
+  }
+
+  if (elements.linesPerBoxInput) {
+    elements.linesPerBoxInput.addEventListener('input', () => splitText());
+    elements.linesPerBoxInput.addEventListener('change', () => splitText());
+  }
 
   if (elements.splitModeSelect) {
     elements.splitModeSelect.addEventListener('change', (e) => {
@@ -221,6 +241,7 @@ function setupEventListeners() {
 }
 
 function extractSentences(text) {
+  if (!text) return [];
   // Regex to split by Bengali Dari (।), ?, !, newlines, or period with space/end
   const rawParts = text.split(/([।?!\n]+|\.(?:\s+|$))/);
   const sentences = [];
@@ -232,28 +253,47 @@ function extractSentences(text) {
       sentences.push(sent + (delim ? delim : ''));
     }
   }
-  return sentences.filter(s => s.trim().length > 0);
+
+  const cleaned = sentences.filter(s => s.trim().length > 0);
+
+  // If no punctuation found, but text is long, fallback to ~15 words per unit
+  if (cleaned.length <= 1 && text.length > 80) {
+    const rawLines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    if (rawLines.length > 1) {
+      return rawLines;
+    }
+    const words = text.split(/\s+/).filter(Boolean);
+    const wordUnits = [];
+    for (let w = 0; w < words.length; w += 12) {
+      wordUnits.push(words.slice(w, w + 12).join(' '));
+    }
+    return wordUnits.length > 0 ? wordUnits : [text];
+  }
+
+  return cleaned;
 }
 
 function updateTextStats() {
-  const text = elements.mainTextInput.value;
+  const text = elements.mainTextInput ? elements.mainTextInput.value : '';
   const charCount = text.length;
   const sentences = extractSentences(text);
   const paragraphs = text.split('\n').filter(l => l.trim().length > 0).length;
-  elements.textStats.textContent = `${charCount} অক্ষর | ${sentences.length} বাক্য | ${paragraphs} প্যারাগ্রাফ`;
+  if (elements.textStats) {
+    elements.textStats.textContent = `${charCount} অক্ষর | ${sentences.length} বাক্য | ${paragraphs} প্যারাগ্রাফ`;
+  }
 }
 
 function splitText() {
-  const rawText = elements.mainTextInput.value;
-  if (!rawText.trim()) {
+  const rawText = elements.mainTextInput ? elements.mainTextInput.value : '';
+  if (!rawText || !rawText.trim()) {
     state.chunks = [];
     renderChunks();
     return;
   }
 
   const mode = elements.splitModeSelect ? elements.splitModeSelect.value : 'sentences';
-  const countPerBox = Math.max(1, parseInt(elements.linesPerBoxInput.value, 10) || 10);
-  const ignoreEmpty = elements.ignoreEmptyLines.checked;
+  const countPerBox = Math.max(1, parseInt(elements.linesPerBoxInput ? elements.linesPerBoxInput.value : 10, 10) || 10);
+  const ignoreEmpty = elements.ignoreEmptyLines ? elements.ignoreEmptyLines.checked : true;
 
   let units = [];
   let unitName = 'বাক্য';
@@ -261,21 +301,26 @@ function splitText() {
   if (mode === 'sentences') {
     units = extractSentences(rawText);
     unitName = 'বাক্য';
-    // If text has no sentence markers (no punctuation) but has multiple newlines
-    if (units.length <= 1 && rawText.length > 200) {
-      units = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      unitName = 'লাইন';
-    }
   } else if (mode === 'words') {
-    units = rawText.split(/\s+/).filter(w => w.length > 0);
+    units = rawText.split(/\s+/).filter(Boolean);
     unitName = 'শব্দ';
   } else {
-    // lines / paragraphs mode
+    // lines mode
     units = rawText.split('\n');
     if (ignoreEmpty) {
-      units = units.map(l => l.trim()).filter(l => l.length > 0);
+      units = units.map(l => l.trim()).filter(Boolean);
     }
     unitName = 'লাইন';
+  }
+
+  // Fallback if units is somehow only 1 huge block
+  if (units.length <= 1 && rawText.length > 100) {
+    const words = rawText.split(/\s+/).filter(Boolean);
+    units = [];
+    for (let w = 0; w < words.length; w += 15) {
+      units.push(words.slice(w, w + 15).join(' '));
+    }
+    unitName = 'অংশ';
   }
 
   const chunks = [];
@@ -289,8 +334,6 @@ function splitText() {
     let chunkText = '';
     if (mode === 'words') {
       chunkText = chunkUnits.join(' ');
-    } else if (mode === 'sentences') {
-      chunkText = chunkUnits.join('\n');
     } else {
       chunkText = chunkUnits.join('\n');
     }
@@ -315,7 +358,7 @@ function splitText() {
         unitName: unitName,
         unitCount: chunkUnits.length,
         text: chunkText,
-        status: 'idle', // idle, generating, ready, error
+        status: 'idle',
         audioBlob: null,
         audioUrl: null,
         errorMessage: ''
