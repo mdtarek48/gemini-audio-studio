@@ -46,4 +46,7 @@ python server.py
 - **Aoede:** উষ্ণ ও প্রমিত নারী কণ্ঠ।
 - **Charon:** গম্ভীর ও রাশভারী পুরুষ কণ্ঠ।
 - **Fenrir:** তেজস্বী ও শক্তিশালী পুরুষ কণ্ঠ।
+- **Bodi:** শান্ত ও অন্তরঙ্গ পুরুষ কণ্ঠ (Quiet and intimate · Low pitch)।
+- **Mako:** প্রাণবন্ত ও রঙিন কণ্ঠ (Energetic and colorful · Low pitch)।
+- **Algenib:** গভীর ও ভারী রাশভারী কণ্ঠ (Gravelly · Lower pitch)।
 
