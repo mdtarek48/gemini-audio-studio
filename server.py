@@ -70,12 +70,19 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json_response(400, {"error": "Invalid JSON: " + str(e)})
             return
 
-        api_key = req_json.get("apiKey", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
+        api_key_raw = req_json.get("apiKey", "") or req_json.get("apiKeys", "") or os.environ.get("GEMINI_API_KEY", "")
+        keys_list = []
+        if isinstance(api_key_raw, list):
+            keys_list = [str(k).strip() for k in api_key_raw if str(k).strip()]
+        elif isinstance(api_key_raw, str):
+            import re
+            keys_list = [k.strip() for k in re.split(r'[\n,;]+', api_key_raw) if k.strip()]
+
         text = req_json.get("text", "").strip()
         voice = req_json.get("voice", "Kore").strip()
         model = req_json.get("model", "gemini-3.8-flash-tts").strip()
 
-        if not api_key:
+        if not keys_list:
             self.send_json_response(400, {
                 "error": "Google AI Studio API Key প্রয়োজন! অনুগ্রহ করে সেটিংস-এ আপনার API Key দিন।"
             })
@@ -85,10 +92,6 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json_response(400, {"error": "কোনো টেক্সট পাওয়া যায়নি।"})
             return
 
-        # Prepare Gemini REST API request
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-
-        # Prompt instructing Gemini to act strictly as TTS
         prompt_instruction = (
             "Read the following text aloud verbatim with natural expression, steady pacing, and clear pronunciation. "
             "Do NOT add any greetings, explanations, introductions, commentary, or outro. "
@@ -118,39 +121,58 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
         }
 
         req_bytes = json.dumps(payload).encode("utf-8")
-        api_req = urllib.request.Request(
-            url,
-            data=req_bytes,
-            headers={"Content-Type": "application/json"},
-            method="POST"
-        )
+        candidate_models = [model, "gemini-3.8-flash-lite-tts"]
+        last_error = ""
+        audio_part = None
+        used_key_idx = 0
+        used_model = model
 
-        try:
-            with urllib.request.urlopen(api_req, timeout=60) as response:
-                resp_data = response.read()
-                resp_json = json.loads(resp_data.decode("utf-8"))
-
-                # Parse Gemini response
-                candidates = resp_json.get("candidates", [])
-                if not candidates:
-                    self.send_json_response(500, {"error": "Gemini কোনো উত্তর দেয়নি। টেক্সটটি পুনরায় চেষ্টা করুন।"})
-                    return
-
-                parts = candidates[0].get("content", {}).get("parts", [])
-                audio_part = None
-                for part in parts:
-                    if "inlineData" in part:
-                        audio_part = part["inlineData"]
+        # Loop through keys and candidate models
+        for k_idx, current_key in enumerate(keys_list):
+            for current_model in candidate_models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={current_key}"
+                api_req = urllib.request.Request(
+                    url,
+                    data=req_bytes,
+                    headers={"Content-Type": "application/json"},
+                    method="POST"
+                )
+                try:
+                    with urllib.request.urlopen(api_req, timeout=60) as response:
+                        resp_data = response.read()
+                        resp_json = json.loads(resp_data.decode("utf-8"))
+                        candidates = resp_json.get("candidates", [])
+                        if not candidates:
+                            continue
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        for part in parts:
+                            if "inlineData" in part:
+                                audio_part = part["inlineData"]
+                                break
+                        if audio_part:
+                            used_key_idx = k_idx
+                            used_model = current_model
+                            break
+                except urllib.error.HTTPError as e:
+                    err_body = e.read().decode("utf-8", errors="replace")
+                    try:
+                        err_json = json.loads(err_body)
+                        last_error = err_json.get("error", {}).get("message", err_body)
+                    except Exception:
+                        last_error = err_body
+                    if e.code == 429 or "quota" in last_error.lower():
+                        continue
+                    else:
                         break
+                except Exception as e:
+                    last_error = str(e)
+                    continue
+            if audio_part:
+                break
 
-                if not audio_part:
-                    # Check if there is text explaining refusal
-                    text_parts = [p.get("text", "") for p in parts if "text" in p]
-                    error_msg = "অডিও জেনারেট হয়নি।"
-                    if text_parts:
-                        error_msg += " মডেল বার্তা: " + " ".join(text_parts)
-                    self.send_json_response(500, {"error": error_msg})
-                    return
+        if not audio_part:
+            self.send_json_response(429, {"error": f"সবগুলো API Key-এর কোটা শেষ: {last_error}"})
+            return
 
                 mime_type = audio_part.get("mimeType", "")
                 raw_base64 = audio_part.get("data", "")

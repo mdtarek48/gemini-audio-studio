@@ -1,6 +1,7 @@
 /**
  * Vercel Serverless Function for Gemini Audio / TTS Generation
  * Handles POST /api/generate-audio
+ * Supports Multi-Account API Key Failover & Quota Rotation
  */
 
 function pcmToWavBuffer(pcmBuffer, sampleRate = 24000, numChannels = 1, bitsPerSample = 16) {
@@ -48,11 +49,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { text, apiKey, voice = 'Kore', model = 'gemini-3.8-flash-tts' } = req.body || {};
+    const { text, apiKey, apiKeys, voice = 'Kore', model = 'gemini-3.8-flash-tts' } = req.body || {};
 
-    const activeApiKey = (apiKey && apiKey.trim()) || process.env.GEMINI_API_KEY;
+    // Support multiple API keys from either array or newline/comma separated string
+    let keysList = [];
+    if (Array.isArray(apiKeys) && apiKeys.length > 0) {
+      keysList = apiKeys.map(k => (k || '').trim()).filter(Boolean);
+    } else if (typeof apiKey === 'string' && apiKey.trim()) {
+      keysList = apiKey.split(/[\n,;]+/).map(k => k.trim()).filter(Boolean);
+    }
 
-    if (!activeApiKey) {
+    if (process.env.GEMINI_API_KEY && !keysList.includes(process.env.GEMINI_API_KEY)) {
+      keysList.push(process.env.GEMINI_API_KEY);
+    }
+
+    if (keysList.length === 0) {
       return res.status(400).json({
         error: 'Google AI Studio API Key প্রয়োজন! অনুগ্রহ করে সেটিংস-এ আপনার API Key দিন।'
       });
@@ -61,8 +72,6 @@ export default async function handler(req, res) {
     if (!text || !text.trim()) {
       return res.status(400).json({ error: 'কোনো টেক্সট পাওয়া যায়নি।' });
     }
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(activeApiKey)}`;
 
     const promptInstruction = (
       "Read the following text aloud verbatim with natural expression, steady pacing, and clear pronunciation. " +
@@ -92,44 +101,91 @@ export default async function handler(req, res) {
       }
     };
 
-    const apiResponse = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    // Candidate models to fallback if one hits quota
+    const candidateModels = [model, 'gemini-3.8-flash-lite-tts'];
+    let lastError = null;
+    let successfulAudio = null;
+    let usedKeyIndex = -1;
+    let usedModel = model;
 
-    const respJson = await apiResponse.json();
+    // Loop through each API key and candidate model automatically
+    outerLoop:
+    for (let k = 0; k < keysList.length; k++) {
+      const activeKey = keysList[k];
 
-    if (!apiResponse.ok) {
-      const errorMsg = respJson?.error?.message || `API Error (${apiResponse.status})`;
-      return res.status(apiResponse.status).json({ error: errorMsg });
-    }
+      for (const currentModel of candidateModels) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(activeKey)}`;
 
-    const candidates = respJson.candidates || [];
-    if (!candidates.length) {
-      return res.status(500).json({ error: 'Gemini কোনো উত্তর দেয়নি। টেক্সটটি পুনরায় চেষ্টা করুন।' });
-    }
+        try {
+          const apiResponse = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
 
-    const parts = candidates[0]?.content?.parts || [];
-    let audioPart = null;
-    for (const part of parts) {
-      if (part.inlineData) {
-        audioPart = part.inlineData;
-        break;
+          const respJson = await apiResponse.json();
+
+          if (!apiResponse.ok) {
+            const errorMsg = respJson?.error?.message || `API Error (${apiResponse.status})`;
+            lastError = errorMsg;
+            const isQuotaError = apiResponse.status === 429 || 
+                                 errorMsg.toLowerCase().includes('quota') || 
+                                 errorMsg.toLowerCase().includes('rate limit') ||
+                                 errorMsg.toLowerCase().includes('resource_exhausted');
+
+            if (isQuotaError) {
+              console.log(`Key #${k + 1} quota exceeded on ${currentModel}. Trying next key/model...`);
+              continue; // try next model or next key
+            } else {
+              // Non-quota error on this key (e.g. invalid key format), move to next key
+              continue outerLoop;
+            }
+          }
+
+          const candidates = respJson.candidates || [];
+          if (!candidates.length) {
+            lastError = 'Gemini কোনো উত্তর দেয়নি।';
+            continue;
+          }
+
+          const parts = candidates[0]?.content?.parts || [];
+          let audioPart = null;
+          for (const part of parts) {
+            if (part.inlineData) {
+              audioPart = part.inlineData;
+              break;
+            }
+          }
+
+          if (!audioPart) {
+            const textParts = parts.filter(p => p.text).map(p => p.text).join(' ');
+            lastError = `অডিও জেনারেট হয়নি। ${textParts}`;
+            continue;
+          }
+
+          // Found working audio!
+          successfulAudio = audioPart;
+          usedKeyIndex = k;
+          usedModel = currentModel;
+          break outerLoop;
+
+        } catch (fetchErr) {
+          lastError = fetchErr.message;
+          continue;
+        }
       }
     }
 
-    if (!audioPart) {
-      const textParts = parts.filter(p => p.text).map(p => p.text).join(' ');
-      return res.status(500).json({
-        error: `অডিও জেনারেট হয়নি।${textParts ? ' মডেল বার্তা: ' + textParts : ''}`
+    if (!successfulAudio) {
+      return res.status(429).json({
+        error: `আপনার সবগুলি API Key-এর কোটা শেষ হয়ে গেছে: ${lastError || 'অনুগ্রহ করে নতুন আরেকটি একাউন্টের API Key যুক্ত করুন।'}`
       });
     }
 
-    const mimeType = audioPart.mimeType || '';
-    const rawBase64 = audioPart.data || '';
+    const mimeType = successfulAudio.mimeType || '';
+    const rawBase64 = successfulAudio.data || '';
     const rawBuffer = Buffer.from(rawBase64, 'base64');
 
     let outBase64 = rawBase64;
@@ -156,7 +212,10 @@ export default async function handler(req, res) {
       success: true,
       mimeType: outMime,
       audioBase64: outBase64,
-      sizeBytes: rawBuffer.length
+      sizeBytes: rawBuffer.length,
+      usedKeyIndex: usedKeyIndex + 1,
+      totalKeys: keysList.length,
+      usedModel: usedModel
     });
 
   } catch (error) {
@@ -164,4 +223,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'সার্ভার ত্রুটি: ' + error.message });
   }
 }
-

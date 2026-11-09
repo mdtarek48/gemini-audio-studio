@@ -12,8 +12,7 @@ const state = {
 const elements = {
   apiKeyInput: document.getElementById('apiKeyInput'),
   saveKeyBtn: document.getElementById('saveKeyBtn'),
-  toggleKeyVisibility: document.getElementById('toggleKeyVisibility'),
-  eyeIcon: document.getElementById('eyeIcon'),
+  keysCountBadge: document.getElementById('keysCountBadge'),
   apiKeyIndicator: document.getElementById('apiKeyIndicator'),
   apiKeyBtnText: document.getElementById('apiKeyBtnText'),
   toggleSettingsBtn: document.getElementById('toggleSettingsBtn'),
@@ -75,13 +74,24 @@ function init() {
   }
 }
 
+function parseKeys(raw) {
+  return (raw || '').split(/[\n,;]+/).map(k => k.trim()).filter(Boolean);
+}
+
 function updateApiKeyStatus(hasKey) {
-  if (hasKey) {
+  const keys = parseKeys(state.apiKey);
+  if (keys.length > 0) {
     elements.apiKeyIndicator.className = 'w-2 h-2 rounded-full bg-teal-400 ring-2 ring-teal-400/20';
-    elements.apiKeyBtnText.textContent = 'API Key যুক্ত আছে';
+    elements.apiKeyBtnText.textContent = `${keys.length}টি Key সক্রিয় 🟢`;
+    if (elements.keysCountBadge) {
+      elements.keysCountBadge.textContent = `${keys.length}টি একাউন্টের Key সক্রিয় (অটো-সুইচিং)`;
+    }
   } else {
     elements.apiKeyIndicator.className = 'w-2 h-2 rounded-full bg-rose-400 animate-pulse';
     elements.apiKeyBtnText.textContent = 'API Key সেট করুন';
+    if (elements.keysCountBadge) {
+      elements.keysCountBadge.textContent = '০টি Key সক্রিয়';
+    }
   }
 }
 
@@ -93,15 +103,16 @@ function setupEventListeners() {
 
   // Save API Key
   elements.saveKeyBtn.addEventListener('click', () => {
-    const key = elements.apiKeyInput.value.trim();
-    if (!key) {
-      showToast('অনুগ্রহ করে একটি সঠিক Google AI Studio API Key দিন।', 'error');
+    const rawInput = elements.apiKeyInput.value.trim();
+    const keys = parseKeys(rawInput);
+    if (keys.length === 0) {
+      showToast('অনুগ্রহ করে অন্তত একটি সঠিক Google AI Studio API Key দিন।', 'error');
       return;
     }
-    state.apiKey = key;
-    localStorage.setItem('gemini_api_key', key);
+    state.apiKey = rawInput;
+    localStorage.setItem('gemini_api_key', rawInput);
     updateApiKeyStatus(true);
-    showToast('API Key সফলভাবে সংরক্ষিত হয়েছে!', 'success');
+    showToast(`${keys.length}টি API Key সংরক্ষিত হয়েছে! একটার কোটা শেষ হলে অন্যটা স্বয়ংক্রিয়ভাবে কাজ করবে।`, 'success');
   });
 
   if (elements.autoPlayCheckbox) {
@@ -529,6 +540,7 @@ window.generateSingleChunk = async function(chunkId) {
       },
       body: JSON.stringify({
         apiKey: state.apiKey,
+        apiKeys: parseKeys(state.apiKey),
         text: chunk.text,
         voice: state.voice,
         model: state.model
@@ -552,7 +564,12 @@ window.generateSingleChunk = async function(chunkId) {
     chunk.audioBlob = blob;
     chunk.audioUrl = URL.createObjectURL(blob);
     chunk.status = 'ready';
-    showToast(`বক্স #${chunk.id}-এর অডিও সফলভাবে তৈরি হয়েছে!`, 'success');
+
+    if (data.usedKeyIndex > 1) {
+      showToast(`বক্স #${chunk.id}: ১ম কী-এর কোটা শেষ হওয়ায় #${data.usedKeyIndex} নং একাউন্ট দিয়ে তৈরি হয়েছে!`, 'success');
+    } else {
+      showToast(`বক্স #${chunk.id}-এর অডিও সফলভাবে তৈরি হয়েছে!`, 'success');
+    }
 
     // Auto-play audio if enabled
     if (state.autoPlay) {
