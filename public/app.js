@@ -22,6 +22,8 @@ const elements = {
   resetModelBtn: document.getElementById('resetModelBtn'),
   
   mainTextInput: document.getElementById('mainTextInput'),
+  splitModeSelect: document.getElementById('splitModeSelect'),
+  unitLabel: document.getElementById('unitLabel'),
   linesPerBoxInput: document.getElementById('linesPerBoxInput'),
   ignoreEmptyLines: document.getElementById('ignoreEmptyLines'),
   textStats: document.getElementById('textStats'),
@@ -58,6 +60,11 @@ function init() {
 
   // Event Listeners
   setupEventListeners();
+
+  if (elements.mainTextInput && elements.mainTextInput.value.trim()) {
+    updateTextStats();
+    splitText();
+  }
 
   // Re-render Lucide icons
   if (window.lucide) {
@@ -136,6 +143,23 @@ function setupEventListeners() {
     splitText();
   });
 
+  if (elements.splitModeSelect) {
+    elements.splitModeSelect.addEventListener('change', (e) => {
+      const mode = e.target.value;
+      if (mode === 'sentences') {
+        if (elements.unitLabel) elements.unitLabel.textContent = 'প্রতি বক্সে বাক্যের সংখ্যা:';
+        elements.linesPerBoxInput.value = 10;
+      } else if (mode === 'lines') {
+        if (elements.unitLabel) elements.unitLabel.textContent = 'প্রতি বক্সে লাইনের সংখ্যা:';
+        elements.linesPerBoxInput.value = 10;
+      } else if (mode === 'words') {
+        if (elements.unitLabel) elements.unitLabel.textContent = 'প্রতি বক্সে শব্দের সংখ্যা:';
+        elements.linesPerBoxInput.value = 100;
+      }
+      splitText();
+    });
+  }
+
   elements.ignoreEmptyLines.addEventListener('change', () => {
     splitText();
   });
@@ -169,11 +193,27 @@ function setupEventListeners() {
   elements.downloadZipBtn.addEventListener('click', handleDownloadZip);
 }
 
+function extractSentences(text) {
+  // Regex to split by Bengali Dari (।), ?, !, newlines, or period with space/end
+  const rawParts = text.split(/([।?!\n]+|\.(?:\s+|$))/);
+  const sentences = [];
+  for (let i = 0; i < rawParts.length; i += 2) {
+    const sent = (rawParts[i] || '').trim();
+    let delim = (rawParts[i + 1] || '').trim();
+    if (delim === '.') delim = '.';
+    if (sent) {
+      sentences.push(sent + (delim ? delim : ''));
+    }
+  }
+  return sentences.filter(s => s.trim().length > 0);
+}
+
 function updateTextStats() {
   const text = elements.mainTextInput.value;
   const charCount = text.length;
-  const lines = text.split('\n').length;
-  elements.textStats.textContent = `${charCount} অক্ষর | ${lines} লাইন`;
+  const sentences = extractSentences(text);
+  const paragraphs = text.split('\n').filter(l => l.trim().length > 0).length;
+  elements.textStats.textContent = `${charCount} অক্ষর | ${sentences.length} বাক্য | ${paragraphs} প্যারাগ্রাফ`;
 }
 
 function splitText() {
@@ -184,38 +224,69 @@ function splitText() {
     return;
   }
 
-  const linesPerBox = Math.max(1, parseInt(elements.linesPerBoxInput.value, 10) || 10);
+  const mode = elements.splitModeSelect ? elements.splitModeSelect.value : 'sentences';
+  const countPerBox = Math.max(1, parseInt(elements.linesPerBoxInput.value, 10) || 10);
   const ignoreEmpty = elements.ignoreEmptyLines.checked;
 
-  let lines = rawText.split('\n');
-  if (ignoreEmpty) {
-    lines = lines.map(l => l.trim()).filter(l => l.length > 0);
+  let units = [];
+  let unitName = 'বাক্য';
+
+  if (mode === 'sentences') {
+    units = extractSentences(rawText);
+    unitName = 'বাক্য';
+    // If text has no sentence markers (no punctuation) but has multiple newlines
+    if (units.length <= 1 && rawText.length > 200) {
+      units = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      unitName = 'লাইন';
+    }
+  } else if (mode === 'words') {
+    units = rawText.split(/\s+/).filter(w => w.length > 0);
+    unitName = 'শব্দ';
+  } else {
+    // lines / paragraphs mode
+    units = rawText.split('\n');
+    if (ignoreEmpty) {
+      units = units.map(l => l.trim()).filter(l => l.length > 0);
+    }
+    unitName = 'লাইন';
   }
 
   const chunks = [];
   let chunkIndex = 1;
 
-  for (let i = 0; i < lines.length; i += linesPerBox) {
-    const chunkLines = lines.slice(i, i + linesPerBox);
-    const startLine = i + 1;
-    const endLine = Math.min(i + linesPerBox, lines.length);
+  for (let i = 0; i < units.length; i += countPerBox) {
+    const chunkUnits = units.slice(i, i + countPerBox);
+    const startNum = i + 1;
+    const endNum = Math.min(i + countPerBox, units.length);
+
+    let chunkText = '';
+    if (mode === 'words') {
+      chunkText = chunkUnits.join(' ');
+    } else if (mode === 'sentences') {
+      chunkText = chunkUnits.join('\n');
+    } else {
+      chunkText = chunkUnits.join('\n');
+    }
 
     // Keep existing audio if text hasn't changed
     const existing = state.chunks[chunkIndex - 1];
-    const chunkText = chunkLines.join('\n');
 
     if (existing && existing.text === chunkText && existing.audioBlob) {
       chunks.push({
         ...existing,
         id: chunkIndex,
-        startLine,
-        endLine
+        startLine: startNum,
+        endLine: endNum,
+        unitName: unitName,
+        unitCount: chunkUnits.length
       });
     } else {
       chunks.push({
         id: chunkIndex,
-        startLine,
-        endLine,
+        startLine: startNum,
+        endLine: endNum,
+        unitName: unitName,
+        unitCount: chunkUnits.length,
         text: chunkText,
         status: 'idle', // idle, generating, ready, error
         audioBlob: null,
@@ -258,10 +329,10 @@ function renderChunks() {
             #${chunk.id}
           </span>
           <span class="text-xs font-semibold text-slate-200">
-            বক্স ${chunk.id} (লাইন ${chunk.startLine} - ${chunk.endLine})
+            বক্স ${chunk.id} (${chunk.unitName || 'বাক্য'} ${chunk.startLine} - ${chunk.endLine})
           </span>
           <span class="text-[11px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-full">
-            ${chunk.text.split('\n').length} লাইন • ${chunk.text.length} অক্ষর
+            ${chunk.unitCount || chunk.text.split('\n').length} ${chunk.unitName || 'বাক্য'} • ${chunk.text.length} অক্ষর
           </span>
         </div>
 
@@ -277,7 +348,7 @@ function renderChunks() {
         <div class="lg:col-span-7">
           <label class="block text-[11px] font-medium text-slate-400 mb-1.5 flex items-center justify-between">
             <span>বক্সের টেক্সট (প্রয়োজনে এডিট করতে পারেন):</span>
-            <span class="text-slate-500 text-[10px]">১০ লাইন</span>
+            <span class="text-slate-500 text-[10px]">${chunk.unitCount || 10} ${chunk.unitName || 'বাক্য'}</span>
           </label>
           <textarea id="chunk-text-${chunk.id}" rows="5" 
             class="w-full bg-slate-950 border border-slate-800 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 rounded-xl p-3 text-xs text-slate-200 placeholder-slate-600 outline-none transition leading-relaxed resize-y font-normal"

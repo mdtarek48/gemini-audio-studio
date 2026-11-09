@@ -142,10 +142,18 @@
 
       <!-- Control Bar -->
       <div class="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-800/60">
-        <div class="flex items-center gap-4 text-xs text-slate-300">
+        <div class="flex flex-wrap items-center gap-4 text-xs text-slate-300">
           <label class="flex items-center gap-2 cursor-pointer select-none">
-            <span>প্রতি বক্সে লাইনের সংখ্যা:</span>
-            <input type="number" id="linesPerBoxInput" min="1" max="50" value="10" 
+            <span class="text-slate-400">ভাগ করার ধরণ:</span>
+            <select id="splitModeSelect" class="bg-slate-950 border border-slate-700 text-teal-400 font-medium rounded-lg px-2.5 py-1 outline-none focus:border-teal-500">
+              <option value="sentences" selected>বাক্য অনুযায়ী (দাঁড়ি '।' / ? / !)</option>
+              <option value="lines">এন্টার / প্যারাগ্রাফ অনুযায়ী (\n)</option>
+              <option value="words">শব্দ সংখ্যা অনুযায়ী</option>
+            </select>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <span id="unitLabel">প্রতি বক্সে বাক্যের সংখ্যা:</span>
+            <input type="number" id="linesPerBoxInput" min="1" max="100" value="10" 
               class="w-16 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-center font-bold text-teal-400 focus:border-teal-500 outline-none">
           </label>
           <label class="flex items-center gap-2 cursor-pointer select-none">
