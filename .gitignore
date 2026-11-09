@@ -5,3 +5,4 @@ __pycache__/
 .vercel
 firebase-debug.log*
 .firebase/
+

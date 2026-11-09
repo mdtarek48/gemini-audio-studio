@@ -11,3 +11,4 @@ echo Step 2: Deploying static files to Firebase Hosting...
 call firebase deploy --only hosting
 echo.
 pause
+
