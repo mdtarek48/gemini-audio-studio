@@ -3,6 +3,7 @@ const state = {
   apiKey: localStorage.getItem('gemini_api_key') || '',
   voice: localStorage.getItem('gemini_voice') || 'Kore',
   model: localStorage.getItem('gemini_model') || 'gemini-3.8-flash-tts',
+  autoPlay: localStorage.getItem('gemini_autoplay') !== 'false',
   chunks: [],
   isGeneratingAll: false
 };
@@ -26,12 +27,14 @@ const elements = {
   unitLabel: document.getElementById('unitLabel'),
   linesPerBoxInput: document.getElementById('linesPerBoxInput'),
   ignoreEmptyLines: document.getElementById('ignoreEmptyLines'),
+  autoPlayCheckbox: document.getElementById('autoPlayCheckbox'),
   textStats: document.getElementById('textStats'),
   loadDemoBtn: document.getElementById('loadDemoBtn'),
   clearTextBtn: document.getElementById('clearTextBtn'),
   splitBtn: document.getElementById('splitBtn'),
   generateAllBtn: document.getElementById('generateAllBtn'),
   generateAllText: document.getElementById('generateAllText'),
+  stopAllBtn: document.getElementById('stopAllBtn'),
   downloadZipBtn: document.getElementById('downloadZipBtn'),
   
   chunksContainer: document.getElementById('chunksContainer'),
@@ -100,6 +103,19 @@ function setupEventListeners() {
     updateApiKeyStatus(true);
     showToast('API Key সফলভাবে সংরক্ষিত হয়েছে!', 'success');
   });
+
+  if (elements.autoPlayCheckbox) {
+    elements.autoPlayCheckbox.checked = state.autoPlay;
+    elements.autoPlayCheckbox.addEventListener('change', (e) => {
+      state.autoPlay = e.target.checked;
+      localStorage.setItem('gemini_autoplay', state.autoPlay);
+      showToast(state.autoPlay ? 'অটো-প্লে চালু করা হয়েছে।' : 'অটো-প্লে বন্ধ করা হয়েছে।', 'info');
+    });
+  }
+
+  if (elements.stopAllBtn) {
+    elements.stopAllBtn.addEventListener('click', handleStopAll);
+  }
 
   // Toggle API Key visibility
   elements.toggleKeyVisibility.addEventListener('click', () => {
@@ -375,9 +391,22 @@ function renderChunks() {
               ` : ''}
             </div>
 
-            <!-- HTML5 Audio Element -->
+            <!-- HTML5 Audio Element & Controls -->
             ${chunk.audioUrl ? `
-              <audio controls class="w-full" src="${chunk.audioUrl}"></audio>
+              <div class="space-y-2">
+                <audio id="audio-player-${chunk.id}" controls class="w-full" src="${chunk.audioUrl}"></audio>
+                <div class="flex items-center justify-between gap-1 text-[11px] pt-1">
+                  <button onclick="playChunkAudio(${chunk.id})" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-teal-300 rounded flex items-center gap-1 border border-slate-700/60">
+                    <i data-lucide="play" class="w-3 h-3 fill-current"></i> প্লে
+                  </button>
+                  <button onclick="pauseChunkAudio(${chunk.id})" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded flex items-center gap-1 border border-slate-700/60">
+                    <i data-lucide="pause" class="w-3 h-3 fill-current"></i> পজ
+                  </button>
+                  <button onclick="stopChunkAudio(${chunk.id})" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-rose-300 rounded flex items-center gap-1 border border-slate-700/60">
+                    <i data-lucide="square" class="w-3 h-3 fill-current"></i> অডিও স্টপ
+                  </button>
+                </div>
+              </div>
             ` : `
               <div class="h-10 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-center text-xs text-slate-500 gap-2">
                 <i data-lucide="volume-x" class="w-4 h-4"></i>
@@ -388,18 +417,20 @@ function renderChunks() {
 
           <!-- Buttons -->
           <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/60">
-            <!-- Generate Button -->
-            <button onclick="generateSingleChunk(${chunk.id})" 
-              ${chunk.status === 'generating' ? 'disabled' : ''}
-              class="w-full py-2.5 px-3 bg-teal-600 hover:bg-teal-500 disabled:bg-slate-800 disabled:opacity-50 text-white font-medium text-xs rounded-lg transition flex items-center justify-center gap-1.5 shadow-md shadow-teal-600/10">
-              ${chunk.status === 'generating' ? `
-                <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
-                <span>তৈরি হচ্ছে...</span>
-              ` : `
+            <!-- Generate or Stop Button -->
+            ${chunk.status === 'generating' ? `
+              <button onclick="stopSingleChunk(${chunk.id})" 
+                class="w-full py-2.5 px-3 bg-rose-600 hover:bg-rose-500 text-white font-medium text-xs rounded-lg transition flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/30 animate-pulse">
+                <i data-lucide="square" class="w-3.5 h-3.5 fill-current"></i>
+                <span>জেনারেশন স্টপ</span>
+              </button>
+            ` : `
+              <button onclick="generateSingleChunk(${chunk.id})" 
+                class="w-full py-2.5 px-3 bg-teal-600 hover:bg-teal-500 text-white font-medium text-xs rounded-lg transition flex items-center justify-center gap-1.5 shadow-md shadow-teal-600/10">
                 <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
-                <span>অডিও জেনারেট</span>
-              `}
-            </button>
+                <span>${chunk.audioBlob ? 'পুনরায় জেনারেট' : 'অডিও জেনারেট'}</span>
+              </button>
+            `}
 
             <!-- Download Button -->
             <button onclick="downloadSingleChunk(${chunk.id})" 
@@ -477,13 +508,22 @@ window.generateSingleChunk = async function(chunkId) {
     return;
   }
 
+  // Create AbortController to allow canceling this generation
+  const controller = new AbortController();
+  chunk.abortController = controller;
   chunk.status = 'generating';
   chunk.errorMessage = '';
   renderChunks();
 
   try {
-    const response = await fetch('/api/generate-audio', {
+    const isFirebase = window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com');
+    const apiEndpoint = isFirebase 
+      ? 'https://gemini-audio-studio-seven.vercel.app/api/generate-audio' 
+      : '/api/generate-audio';
+
+    const response = await fetch(apiEndpoint, {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json'
       },
@@ -514,14 +554,62 @@ window.generateSingleChunk = async function(chunkId) {
     chunk.status = 'ready';
     showToast(`বক্স #${chunk.id}-এর অডিও সফলভাবে তৈরি হয়েছে!`, 'success');
 
+    // Auto-play audio if enabled
+    if (state.autoPlay) {
+      setTimeout(() => {
+        const player = document.getElementById(`audio-player-${chunk.id}`);
+        if (player) {
+          player.play().catch(e => console.log('Autoplay deferred:', e));
+        }
+      }, 300);
+    }
+
   } catch (error) {
+    if (error.name === 'AbortError') {
+      chunk.status = 'idle';
+      chunk.errorMessage = 'জেনারেশন থামানো হয়েছে।';
+      return;
+    }
     console.error('TTS Error:', error);
     chunk.status = 'error';
     chunk.errorMessage = error.message;
     showToast(`বক্স #${chunk.id} ত্রুটি: ${error.message}`, 'error');
   } finally {
+    chunk.abortController = null;
     renderChunks();
     updateZipButtonState();
+  }
+};
+
+window.stopSingleChunk = function(chunkId) {
+  const chunk = state.chunks.find(c => c.id === chunkId);
+  if (chunk) {
+    if (chunk.abortController) {
+      chunk.abortController.abort();
+      chunk.abortController = null;
+    }
+    chunk.status = 'idle';
+    chunk.errorMessage = 'জেনারেশন থামানো হয়েছে।';
+    renderChunks();
+    showToast(`বক্স #${chunk.id}-এর অডিও জেনারেশন থামানো হয়েছে।`, 'info');
+  }
+};
+
+window.playChunkAudio = function(chunkId) {
+  const player = document.getElementById(`audio-player-${chunkId}`);
+  if (player) player.play();
+};
+
+window.pauseChunkAudio = function(chunkId) {
+  const player = document.getElementById(`audio-player-${chunkId}`);
+  if (player) player.pause();
+};
+
+window.stopChunkAudio = function(chunkId) {
+  const player = document.getElementById(`audio-player-${chunkId}`);
+  if (player) {
+    player.pause();
+    player.currentTime = 0;
   }
 };
 
@@ -556,9 +644,11 @@ async function handleGenerateAll() {
   state.isGeneratingAll = true;
   elements.generateAllBtn.disabled = true;
   elements.generateAllText.textContent = 'প্রসেসিং হচ্ছে...';
+  if (elements.stopAllBtn) elements.stopAllBtn.classList.remove('hidden');
 
   try {
     for (let i = 0; i < state.chunks.length; i++) {
+      if (!state.isGeneratingAll) break;
       const chunk = state.chunks[i];
       if (chunk.status === 'ready' && chunk.audioBlob) {
         continue; // Skip already generated
@@ -566,17 +656,41 @@ async function handleGenerateAll() {
       elements.generateAllText.textContent = `জেনারেট হচ্ছে (${i + 1}/${state.chunks.length})...`;
       await window.generateSingleChunk(chunk.id);
       
+      if (!state.isGeneratingAll) break;
+
       // Small pause to stay well within Gemini 15 RPM free tier limits
       await new Promise(r => setTimeout(r, 1500));
     }
-    showToast('সবগুলো বক্সের অডিও তৈরি সম্পন্ন হয়েছে!', 'success');
+    if (state.isGeneratingAll) {
+      showToast('সবগুলো বক্সের অডিও তৈরি সম্পন্ন হয়েছে!', 'success');
+    }
   } catch (err) {
     showToast('জেনারেটের মাঝে কোনো ত্রুটি হয়েছে।', 'error');
   } finally {
     state.isGeneratingAll = false;
     elements.generateAllBtn.disabled = false;
     elements.generateAllText.textContent = 'সবগুলো একসাথে জেনারেট';
+    if (elements.stopAllBtn) elements.stopAllBtn.classList.add('hidden');
   }
+}
+
+function handleStopAll() {
+  state.isGeneratingAll = false;
+  state.chunks.forEach(chunk => {
+    if (chunk.abortController) {
+      chunk.abortController.abort();
+      chunk.abortController = null;
+    }
+    if (chunk.status === 'generating') {
+      chunk.status = 'idle';
+      chunk.errorMessage = 'জেনারেশন থামানো হয়েছে।';
+    }
+  });
+  if (elements.stopAllBtn) elements.stopAllBtn.classList.add('hidden');
+  elements.generateAllBtn.disabled = false;
+  elements.generateAllText.textContent = 'সবগুলো একসাথে জেনারেট';
+  renderChunks();
+  showToast('সবগুলো অডিও জেনারেশন থামানো হয়েছে।', 'info');
 }
 
 async function handleDownloadZip() {
