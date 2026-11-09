@@ -1,0 +1,20 @@
+{
+  "name": "gemini-audio-studio",
+  "version": "1.0.0",
+  "description": "Text to Audio generator using Google AI Studio Gemini API with 10-line auto chunking",
+  "type": "module",
+  "main": "server.py",
+  "scripts": {
+    "dev": "python server.py",
+    "start": "python server.py"
+  },
+  "keywords": [
+    "gemini",
+    "tts",
+    "audio",
+    "text-to-speech",
+    "ai-studio"
+  ],
+  "author": "",
+  "license": "MIT"
+}
