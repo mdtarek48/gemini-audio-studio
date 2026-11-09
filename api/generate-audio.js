@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { text, apiKey, voice = 'Puck', model = 'gemini-2.0-flash' } = req.body || {};
+    const { text, apiKey, voice = 'Kore', model = 'gemini-3.8-flash-tts' } = req.body || {};
 
     const activeApiKey = (apiKey && apiKey.trim()) || process.env.GEMINI_API_KEY;
 

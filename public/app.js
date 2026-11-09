@@ -2,7 +2,7 @@
 const state = {
   apiKey: localStorage.getItem('gemini_api_key') || '',
   voice: localStorage.getItem('gemini_voice') || 'Kore',
-  model: localStorage.getItem('gemini_model') || 'gemini-2.0-flash',
+  model: localStorage.getItem('gemini_model') || 'gemini-3.8-flash-tts',
   chunks: [],
   isGeneratingAll: false
 };
@@ -39,6 +39,12 @@ const elements = {
 
 // Initialize
 function init() {
+  // Automatically migrate from deprecated gemini-2.0-flash to gemini-3.8-flash-tts
+  if (!state.model || state.model === 'gemini-2.0-flash') {
+    state.model = 'gemini-3.8-flash-tts';
+    localStorage.setItem('gemini_model', 'gemini-3.8-flash-tts');
+  }
+
   // Load saved values
   if (state.apiKey) {
     elements.apiKeyInput.value = state.apiKey;
@@ -105,15 +111,15 @@ function setupEventListeners() {
 
   // Model change
   elements.modelInput.addEventListener('change', (e) => {
-    state.model = e.target.value.trim() || 'gemini-2.0-flash';
+    state.model = e.target.value.trim() || 'gemini-3.8-flash-tts';
     localStorage.setItem('gemini_model', state.model);
   });
 
   elements.resetModelBtn.addEventListener('click', () => {
-    state.model = 'gemini-2.0-flash';
-    elements.modelInput.value = 'gemini-2.0-flash';
-    localStorage.setItem('gemini_model', 'gemini-2.0-flash');
-    showToast('মডেল রিসেট হয়ে gemini-2.0-flash হয়েছে।', 'info');
+    state.model = 'gemini-3.8-flash-tts';
+    elements.modelInput.value = 'gemini-3.8-flash-tts';
+    localStorage.setItem('gemini_model', 'gemini-3.8-flash-tts');
+    showToast('মডেল রিসেট হয়ে gemini-3.8-flash-tts হয়েছে।', 'info');
   });
 
   // Main text input events

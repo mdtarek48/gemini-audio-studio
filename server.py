@@ -72,8 +72,8 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
 
         api_key = req_json.get("apiKey", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
         text = req_json.get("text", "").strip()
-        voice = req_json.get("voice", "Puck").strip()
-        model = req_json.get("model", "gemini-2.0-flash").strip()
+        voice = req_json.get("voice", "Kore").strip()
+        model = req_json.get("model", "gemini-3.8-flash-tts").strip()
 
         if not api_key:
             self.send_json_response(400, {
