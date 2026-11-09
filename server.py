@@ -92,18 +92,19 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json_response(400, {"error": "কোনো টেক্সট পাওয়া যায়নি।"})
             return
 
-        prompt_instruction = (
-            "Read the following text aloud verbatim with natural expression, steady pacing, and clear pronunciation. "
-            "Do NOT add any greetings, explanations, introductions, commentary, or outro. "
-            "Only voice the exact text provided below:\n\n" + text
-        )
-
         payload = {
+            "systemInstruction": {
+                "parts": [
+                    {
+                        "text": "You are a verbatim Text-to-Speech (TTS) synthesizer. Your ONLY job is to read the exact user provided text aloud in its original language. DO NOT speak in English unless the text is in English. NEVER add any introduction, preamble, commentary, conversational filler, or greeting (such as 'Sure', 'Okay', 'Here is the reading', 'Alright'). Start speaking the provided text immediately from the very first word."
+                    }
+                ]
+            },
             "contents": [
                 {
                     "parts": [
                         {
-                            "text": prompt_instruction
+                            "text": text.strip()
                         }
                     ]
                 }
