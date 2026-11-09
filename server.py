@@ -93,13 +93,6 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         payload = {
-            "systemInstruction": {
-                "parts": [
-                    {
-                        "text": "You are a verbatim Text-to-Speech (TTS) synthesizer. Your ONLY job is to read the exact user provided text aloud in its original language. DO NOT speak in English unless the text is in English. NEVER add any introduction, preamble, commentary, conversational filler, or greeting (such as 'Sure', 'Okay', 'Here is the reading', 'Alright'). Start speaking the provided text immediately from the very first word."
-                    }
-                ]
-            },
             "contents": [
                 {
                     "parts": [
@@ -122,8 +115,12 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
         }
 
         req_bytes = json.dumps(payload).encode("utf-8")
-        candidate_models = [model, "gemini-3.8-flash-lite-tts"]
+        candidate_models = [model]
+        if model != "gemini-3.8-flash-lite-tts":
+            candidate_models.append("gemini-3.8-flash-lite-tts")
+
         last_error = ""
+        had_quota_error = False
         audio_part = None
         used_key_idx = 0
         used_model = model
@@ -161,7 +158,8 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                         last_error = err_json.get("error", {}).get("message", err_body)
                     except Exception:
                         last_error = err_body
-                    if e.code == 429 or "quota" in last_error.lower():
+                    if e.code == 429 or "quota" in last_error.lower() or "resource_exhausted" in last_error.lower():
+                        had_quota_error = True
                         continue
                     else:
                         break
@@ -172,48 +170,44 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                 break
 
         if not audio_part:
-            self.send_json_response(429, {"error": f"সবগুলো API Key-এর কোটা শেষ: {last_error}"})
+            if had_quota_error:
+                self.send_json_response(429, {"error": f"আপনার সবগুলি API Key-এর কোটা শেষ হয়ে গেছে: {last_error}"})
+            else:
+                self.send_json_response(400, {"error": f"API ত্রুটি: {last_error}"})
             return
 
-                mime_type = audio_part.get("mimeType", "")
-                raw_base64 = audio_part.get("data", "")
-                raw_bytes = base64.b64decode(raw_base64)
+        try:
+            mime_type = audio_part.get("mimeType", "")
+            raw_base64 = audio_part.get("data", "")
+            raw_bytes = base64.b64decode(raw_base64)
 
-                # Check if it's raw PCM data and needs WAV conversion
-                if "pcm" in mime_type.lower() or not mime_type.startswith("audio/wav"):
-                    # Default Gemini audio is 24000Hz 16-bit mono PCM
-                    sample_rate = 24000
-                    if "rate=" in mime_type:
-                        try:
-                            rate_str = mime_type.split("rate=")[1].split(";")[0].strip()
-                            sample_rate = int(rate_str)
-                        except Exception:
-                            sample_rate = 24000
+            # Check if it's raw PCM data and needs WAV conversion
+            if "pcm" in mime_type.lower() or not mime_type.startswith("audio/wav"):
+                # Default Gemini audio is 24000Hz 16-bit mono PCM
+                sample_rate = 24000
+                if "rate=" in mime_type:
+                    try:
+                        rate_str = mime_type.split("rate=")[1].split(";")[0].strip()
+                        sample_rate = int(rate_str)
+                    except Exception:
+                        sample_rate = 24000
 
-                    wav_bytes = pcm_to_wav(raw_bytes, sample_rate=sample_rate)
-                    out_base64 = base64.b64encode(wav_bytes).decode("utf-8")
-                    out_mime = "audio/wav"
-                else:
-                    out_base64 = raw_base64
-                    out_mime = mime_type
+                wav_bytes = pcm_to_wav(raw_bytes, sample_rate=sample_rate)
+                out_base64 = base64.b64encode(wav_bytes).decode("utf-8")
+                out_mime = "audio/wav"
+            else:
+                out_base64 = raw_base64
+                out_mime = mime_type
 
-                self.send_json_response(200, {
-                    "success": True,
-                    "mimeType": out_mime,
-                    "audioBase64": out_base64,
-                    "sizeBytes": len(raw_bytes)
-                })
-
-        except urllib.error.HTTPError as e:
-            err_body = e.read().decode("utf-8", errors="replace")
-            err_msg = f"API Error ({e.code}): "
-            try:
-                err_json = json.loads(err_body)
-                err_msg += err_json.get("error", {}).get("message", err_body)
-            except Exception:
-                err_msg += err_body
-
-            self.send_json_response(e.code, {"error": err_msg})
+            self.send_json_response(200, {
+                "success": True,
+                "mimeType": out_mime,
+                "audioBase64": out_base64,
+                "sizeBytes": len(raw_bytes),
+                "usedKeyIndex": used_key_idx + 1,
+                "totalKeys": len(keys_list),
+                "usedModel": used_model
+            })
         except Exception as e:
             self.send_json_response(500, {"error": f"সার্ভার ত্রুটি: {str(e)}"})
 
@@ -263,4 +257,3 @@ def run_server():
 
 if __name__ == "__main__":
     run_server()
-

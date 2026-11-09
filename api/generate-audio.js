@@ -73,14 +73,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'কোনো টেক্সট পাওয়া যায়নি।' });
     }
 
+    // Pure text payload without systemInstruction and without English wrapper.
+    // Note: Gemini audio/speech models (gemini-3.8-flash-tts) do not support systemInstruction
+    // and will reject it with HTTP 400 "Developer instruction is not enabled for this model".
+    // Pure text input ensures no English preamble is spoken by conversational voices.
     const payload = {
-      systemInstruction: {
-        parts: [
-          {
-            text: "You are a verbatim Text-to-Speech (TTS) synthesizer. Your ONLY job is to read the exact user provided text aloud in its original language. DO NOT speak in English unless the text is in English. NEVER add any introduction, preamble, commentary, conversational filler, or greeting (such as 'Sure', 'Okay', 'Here is the reading', 'Alright'). Start speaking the provided text immediately from the very first word."
-          }
-        ]
-      },
       contents: [
         {
           parts: [
@@ -103,8 +100,13 @@ export default async function handler(req, res) {
     };
 
     // Candidate models to fallback if one hits quota
-    const candidateModels = [model, 'gemini-3.8-flash-lite-tts'];
+    const candidateModels = [model];
+    if (model !== 'gemini-3.8-flash-lite-tts') {
+      candidateModels.push('gemini-3.8-flash-lite-tts');
+    }
+
     let lastError = null;
+    let hadQuotaError = false;
     let successfulAudio = null;
     let usedKeyIndex = -1;
     let usedModel = model;
@@ -137,10 +139,12 @@ export default async function handler(req, res) {
                                  errorMsg.toLowerCase().includes('resource_exhausted');
 
             if (isQuotaError) {
+              hadQuotaError = true;
               console.log(`Key #${k + 1} quota exceeded on ${currentModel}. Trying next key/model...`);
               continue; // try next model or next key
             } else {
-              // Non-quota error on this key (e.g. invalid key format), move to next key
+              // Non-quota error on this key (e.g. invalid key format or bad request)
+              console.error(`Key #${k + 1} error:`, errorMsg);
               continue outerLoop;
             }
           }
@@ -180,9 +184,15 @@ export default async function handler(req, res) {
     }
 
     if (!successfulAudio) {
-      return res.status(429).json({
-        error: `আপনার সবগুলি API Key-এর কোটা শেষ হয়ে গেছে: ${lastError || 'অনুগ্রহ করে নতুন আরেকটি একাউন্টের API Key যুক্ত করুন।'}`
-      });
+      if (hadQuotaError) {
+        return res.status(429).json({
+          error: `আপনার সবগুলি API Key-এর কোটা শেষ হয়ে গেছে: ${lastError || 'অনুগ্রহ করে নতুন আরেকটি একাউন্টের API Key যুক্ত করুন।'}`
+        });
+      } else {
+        return res.status(400).json({
+          error: `API ত্রুটি: ${lastError || 'অডিও তৈরি করা যায়নি।'}`
+        });
+      }
     }
 
     const mimeType = successfulAudio.mimeType || '';
