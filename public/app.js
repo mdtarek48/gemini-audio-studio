@@ -973,6 +973,96 @@ function setupAudioScanner() {
     }
   }
 
+  function audioBufferToWav(buffer) {
+    const numChannels = 1;
+    const sampleRate = buffer.sampleRate;
+    const format = 1; // 1 = PCM
+    const bitDepth = 16;
+    const bytesPerSample = bitDepth / 8;
+    const blockAlign = numChannels * bytesPerSample;
+
+    let data;
+    if (buffer.numberOfChannels === 1) {
+      data = buffer.getChannelData(0);
+    } else {
+      const left = buffer.getChannelData(0);
+      const right = buffer.getChannelData(1);
+      data = new Float32Array(buffer.length);
+      for (let i = 0; i < buffer.length; i++) {
+        data[i] = (left[i] + right[i]) / 2;
+      }
+    }
+
+    const dataLength = data.length * bytesPerSample;
+    const arrayBuffer = new ArrayBuffer(44 + dataLength);
+    const view = new DataView(arrayBuffer);
+
+    function writeStr(offset, str) {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    }
+
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + dataLength, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, format, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitDepth, true);
+    writeStr(36, 'data');
+    view.setUint32(40, dataLength, true);
+
+    let offset = 44;
+    for (let i = 0; i < data.length; i++) {
+      const s = Math.max(-1, Math.min(1, data[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      offset += 2;
+    }
+
+    return new Blob([view], { type: 'audio/wav' });
+  }
+
+  async function prepareOptimizedAudioFile(file) {
+    // If already compressed audio and under 2.5MB, no resample needed
+    if (file.size <= 2.5 * 1024 * 1024 && (file.type.includes('mp3') || file.type.includes('mpeg') || file.name.endsWith('.mp3'))) {
+      return file;
+    }
+
+    // Resample down to 16kHz mono WAV (speech recognition standard) using Web Audio API
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return file;
+
+      const tempCtx = new AudioCtx();
+      const decoded = await tempCtx.decodeAudioData(arrayBuffer);
+      await tempCtx.close();
+
+      const targetSampleRate = 16000;
+      const targetLength = Math.ceil(decoded.duration * targetSampleRate);
+      const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      const offline = new OfflineCtx(1, targetLength, targetSampleRate);
+
+      const src = offline.createBufferSource();
+      src.buffer = decoded;
+      src.connect(offline.destination);
+      src.start(0);
+
+      const rendered = await offline.startRendering();
+      const wavBlob = audioBufferToWav(rendered);
+      console.log(`[Audio Resample] Reduced ${(file.size / (1024 * 1024)).toFixed(2)}MB -> ${(wavBlob.size / (1024 * 1024)).toFixed(2)}MB (16kHz Mono WAV)`);
+      return new File([wavBlob], file.name.replace(/\.[^.]+$/, '') + '.wav', { type: 'audio/wav' });
+    } catch (err) {
+      console.warn('[Audio Resample] Fallback to original audio:', err);
+      return file;
+    }
+  }
+
   function readAudioFileAsBase64(file) {
     if (scannerAudioBase64 && scannerAudioFile === file) {
       return Promise.resolve(scannerAudioBase64);
@@ -1099,12 +1189,13 @@ function setupAudioScanner() {
 
     loadingState.classList.remove('hidden');
     policyResultsSection.classList.add('hidden');
-    loadingText.textContent = 'অডিও ফাইল লোড হচ্ছে...';
+    loadingText.textContent = 'অডিও অপ্টিমাইজ করা হচ্ছে...';
     transcribeAndCheckBtn.disabled = true;
     transcribeOnlyBtn.disabled = true;
 
     try {
-      const audioBase64 = await readAudioFileAsBase64(scannerAudioFile);
+      const optimizedFile = await prepareOptimizedAudioFile(scannerAudioFile);
+      const audioBase64 = await readAudioFileAsBase64(optimizedFile);
       if (!audioBase64) {
         throw new Error('অডিও ফাইল রিড করা যায়নি।');
       }
@@ -1119,16 +1210,16 @@ function setupAudioScanner() {
           : '/api/transcribe-audio';
 
       // Detect MIME type safely
-      let mimeType = scannerAudioFile.type;
+      let mimeType = optimizedFile.type;
       if (!mimeType || mimeType === 'application/octet-stream') {
-        const ext = (scannerAudioFile.name.split('.').pop() || 'mp3').toLowerCase();
-        if (ext === 'mp3') mimeType = 'audio/mp3';
-        else if (ext === 'wav') mimeType = 'audio/wav';
+        const ext = (optimizedFile.name.split('.').pop() || 'mp3').toLowerCase();
+        if (ext === 'wav') mimeType = 'audio/wav';
+        else if (ext === 'mp3') mimeType = 'audio/mp3';
         else if (ext === 'm4a') mimeType = 'audio/mp4';
         else if (ext === 'ogg') mimeType = 'audio/ogg';
         else if (ext === 'webm') mimeType = 'audio/webm';
         else if (ext === 'aac') mimeType = 'audio/aac';
-        else mimeType = 'audio/mp3';
+        else mimeType = 'audio/wav';
       }
 
       const resp = await fetch(transcribeUrl, {
@@ -1137,13 +1228,23 @@ function setupAudioScanner() {
         body: JSON.stringify({
           audioBase64: audioBase64,
           mimeType: mimeType,
-          fileName: scannerAudioFile ? scannerAudioFile.name : '',
+          fileName: optimizedFile.name,
           apiKey: state.apiKey,
           apiKeys: parseKeys(state.apiKey)
         })
       });
 
-      const data = await resp.json();
+      const textResp = await resp.text();
+      let data;
+      try {
+        data = JSON.parse(textResp);
+      } catch (jsonErr) {
+        if (resp.status === 413 || textResp.includes('Request Entity Too Large') || textResp.includes('FUNCTION_PAYLOAD_TOO_LARGE')) {
+          throw new Error('অডিও ফাইলটি সার্ভারের সাইজ সীমা অতিক্রম করেছে। অনুগ্রহ করে একটি ছোট অডিও ফাইল দিন।');
+        }
+        throw new Error(textResp || `সার্ভার ত্রুটি (${resp.status})`);
+      }
+
       if (!resp.ok || !data.success) {
         throw new Error(data.error || 'অডিও ট্রান্সক্রিপশন ব্যর্থ হয়েছে।');
       }
@@ -1205,7 +1306,14 @@ function setupAudioScanner() {
         })
       });
 
-      const data = await resp.json();
+      const textResp = await resp.text();
+      let data;
+      try {
+        data = JSON.parse(textResp);
+      } catch (jsonErr) {
+        throw new Error(textResp || `সার্ভার ত্রুটি (${resp.status})`);
+      }
+
       if (!resp.ok || !data.success || !data.analysis) {
         throw new Error(data.error || 'ইউটিউব পলিসি স্ক্যান সম্পন্ন করা যায়নি।');
       }
