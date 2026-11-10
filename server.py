@@ -82,175 +82,10 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/api/generate-audio":
             self.handle_generate_audio()
-        elif self.path == "/api/transcribe-audio":
-            self.handle_transcribe_audio()
         elif self.path == "/api/check-policy":
             self.handle_check_policy()
         else:
             self.send_error(404, "Endpoint not found")
-
-    def handle_transcribe_audio(self):
-        content_length = int(self.headers.get("Content-Length", 0))
-        post_data = self.rfile.read(content_length)
-
-        try:
-            req_json = json.loads(post_data.decode("utf-8"))
-        except Exception as e:
-            self.send_json_response(400, {"error": "Invalid JSON: " + str(e)})
-            return
-
-        api_key_raw = req_json.get("apiKey", "") or req_json.get("apiKeys", "") or os.environ.get("GEMINI_API_KEY", "")
-        keys_list = []
-        if isinstance(api_key_raw, list):
-            keys_list = [str(k).strip() for k in api_key_raw if str(k).strip()]
-        elif isinstance(api_key_raw, str):
-            import re
-            keys_list = [k.strip() for k in re.split(r'[\n,;]+', api_key_raw) if k.strip()]
-
-        audio_base64 = req_json.get("audioBase64", "").strip()
-        file_name = req_json.get("fileName", "")
-        mime_type = req_json.get("mimeType", "").strip()
-
-        if not keys_list:
-            self.send_json_response(400, {
-                "error": "Google AI Studio API Key প্রয়োজন! অনুগ্রহ করে সেটিংস-এ আপনার API Key দিন।"
-            })
-            return
-
-        if not audio_base64:
-            self.send_json_response(400, {"error": "কোনো অডিও ডাটা পাওয়া যায়নি।"})
-            return
-
-        # Sanitize base64 (strip prefix and invalid characters)
-        if "base64," in audio_base64:
-            audio_base64 = audio_base64.split("base64,")[-1]
-        import re
-        audio_base64 = re.sub(r'[^A-Za-z0-9+/=]', '', audio_base64)
-
-        # Normalize MIME type strictly to official Gemini supported formats
-        ext = file_name.split(".")[-1].lower() if "." in file_name else ""
-        m_lower = mime_type.lower()
-        if ext == "wav" or "wav" in m_lower:
-            mime_type = "audio/wav"
-        elif ext == "mp3" or "mpeg" in m_lower or "mp3" in m_lower:
-            mime_type = "audio/mp3"
-        elif ext == "m4a" or "mp4" in m_lower or "m4a" in m_lower:
-            mime_type = "audio/mp4"
-        elif ext == "ogg" or "ogg" in m_lower:
-            mime_type = "audio/ogg"
-        elif ext == "flac" or "flac" in m_lower:
-            mime_type = "audio/flac"
-        elif ext == "aac" or "aac" in m_lower:
-            mime_type = "audio/aac"
-        elif ext == "webm" or "webm" in m_lower:
-            mime_type = "audio/webm"
-        else:
-            mime_type = "audio/mp3"
-
-        # Prepare multimodal request payload for Gemini Speech-to-Text
-        payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {
-                            "text": "Please transcribe all spoken words in this audio verbatim with accurate spelling and punctuation in its original spoken language (such as Bengali or English). Do not add any conversational commentary, introduction, or timestamps. Return ONLY the exact transcribed text."
-                        },
-                        {
-                            "inlineData": {
-                                "mimeType": mime_type,
-                                "data": audio_base64
-                            }
-                        }
-                    ]
-                }
-            ]
-        }
-
-        req_bytes = json.dumps(payload).encode("utf-8")
-        last_error = ""
-        transcription_text = ""
-        used_key_idx = 0
-        used_model = ""
-
-        # Loop through keys and dynamically discovered models
-        for k_idx, current_key in enumerate(keys_list):
-            supported = fetch_supported_models(current_key)
-            flash_models = [m for m in supported if "flash" in m.lower() and not m.endswith("-tts")]
-            other_models = [m for m in supported if not m.endswith("-tts") and m not in flash_models]
-            
-            candidate_models = []
-            for m in flash_models + other_models:
-                if m not in candidate_models:
-                    candidate_models.append(m)
-            
-            # Defaults as fallbacks
-            for fb in ["gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
-                if fb not in candidate_models:
-                    candidate_models.append(fb)
-
-            print(f"[STT] Key #{k_idx+1}: evaluating models {candidate_models[:4]}...", flush=True)
-
-            for current_model in candidate_models:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={current_key}"
-                api_req = urllib.request.Request(
-                    url,
-                    data=req_bytes,
-                    headers={"Content-Type": "application/json"},
-                    method="POST"
-                )
-                try:
-                    print(f"[STT] Trying model: {current_model}...", flush=True)
-                    with urllib.request.urlopen(api_req, timeout=120) as response:
-                        resp_data = response.read()
-                        resp_json = json.loads(resp_data.decode("utf-8"))
-                        candidates = resp_json.get("candidates", [])
-                        if not candidates:
-                            continue
-                        parts = candidates[0].get("content", {}).get("parts", [])
-                        text_parts = [p.get("text", "") for p in parts if "text" in p]
-                        if text_parts:
-                            transcription_text = "".join(text_parts).strip()
-                            used_key_idx = k_idx
-                            used_model = current_model
-                            print(f"[STT SUCCESS] Model {current_model} transcribed {len(transcription_text)} chars!", flush=True)
-                            break
-                except urllib.error.HTTPError as e:
-                    err_body = e.read().decode("utf-8", errors="replace")
-                    try:
-                        err_json = json.loads(err_body)
-                        last_error = err_json.get("error", {}).get("message", err_body)
-                    except Exception:
-                        last_error = err_body
-                    
-                    print(f"[STT Model {current_model} Failed] Code: {e.code}, Message: {last_error}", flush=True)
-                    is_quota = e.code == 429 or "quota" in last_error.lower() or "resource_exhausted" in last_error.lower() or "rate limit" in last_error.lower()
-                    if is_quota:
-                        # Quota exceeded on this key -> switch to next key
-                        print(f"[STT Quota Exceeded] Switching to next key...", flush=True)
-                        break
-                    else:
-                        # Model not available or unsupported -> try next candidate model
-                        continue
-                except Exception as e:
-                    last_error = str(e)
-                    print(f"[STT Exception] {e}", flush=True)
-                    continue
-            if transcription_text:
-                break
-
-        if not transcription_text:
-            self.send_json_response(400, {
-                "error": f"অডিও ট্রান্সক্রিপশন সম্পন্ন করা যায়নি: {last_error or 'Gemini কোনো টেক্সট দিতে পারেনি।'}"
-            })
-            return
-
-        self.send_json_response(200, {
-            "success": True,
-            "transcription": transcription_text,
-            "usedKeyIndex": used_key_idx + 1,
-            "totalKeys": len(keys_list),
-            "usedModel": used_model
-        })
 
     def handle_check_policy(self):
         content_length = int(self.headers.get("Content-Length", 0))
@@ -283,27 +118,25 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         prompt = (
-            "You are a professional YouTube Community Guidelines & Advertiser-Friendly Monetization Policy Specialist.\n\n"
-            "Carefully analyze the following script for potential YouTube policy violations or demonetization/yellow-dollar risks "
-            "(e.g., hate speech, severe profanity/vulgarity, violence, harassment, harmful misinformation, sexual content, sensitive/controversial tragedy triggers, advertiser-unfriendly terms).\n\n"
-            "Script to evaluate:\n"
-            f'"""{text}"""\n\n'
-            "Return your evaluation strictly in the following JSON schema:\n"
+            "You are an ultra-fast YouTube Community Guidelines & Advertiser-Friendly Monetization Policy Evaluator.\n"
+            "Analyze the text below for policy violations (hate speech, severe profanity/vulgarity, violence, harassment, harmful misinformation, sexual content, advertiser-unfriendly/demonetization risks).\n\n"
+            f'Text to check:\n"""{text}"""\n\n'
+            "Return STRICT JSON only matching this schema:\n"
             "{\n"
-            '  "safetyScore": 85,\n'
+            '  "safetyScore": 95,\n'
             '  "status": "clean" | "warning" | "violation",\n'
-            '  "summary": "বাংলায় সামগ্রিক পর্যালোচনার বিবরণ (১-২ বাক্য)",\n'
+            '  "summary": "বাংলায় ১টি সংক্ষিপ্ত বাক্যে সামগ্রিক মূল্যায়ন",\n'
             '  "violations": [\n'
             "    {\n"
-            '      "word": "শব্দ বা বাক্য অংশ",\n'
-            '      "category": "গালিগালাজ / অশ্লীল" | "ঘৃণামূলক বক্তব্য (Hate Speech)" | "হয়রানি (Harassment)" | "সহিংসতা (Violence)" | "মনিটাইজেশন ঝুঁকি (Demonetization)" | "ভ্রান্ত তথ্য (Misinformation)",\n'
+            '      "word": "স্ক্রিপ্টে থাকা মূল ঝুঁকিপূর্ণ শব্দটি",\n'
+            '      "category": "গালিগালাজ" | "ঘৃণামূলক বক্তব্য" | "হয়রানি" | "সহিংসতা" | "মনিটাইজেশন ঝুঁকি",\n'
             '      "severity": "high" | "medium" | "low",\n'
-            '      "reason": "বাংলায় সহজভাবে কেন এটি ইউটিউবের পলিসির পরিপন্থী",\n'
-            '      "suggestedWord": "শালীন ও নিরাপদ বিকল্প বাংলা শব্দ"\n'
+            '      "reason": "কেন এটি ইউটিউবের পলিসির পরিপন্থী (খুব সংক্ষেপে)",\n'
+            '      "suggestedWord": "নিরাপদ শালীন বিকল্প বাংলা শব্দ"\n'
             "    }\n"
-            "  ],\n"
-            '  "safeCorrectedText": "সম্পূর্ণ টেক্সটের একটি ১০০% ইউটিউব-সেইফ ও শালীন সংস্করণ যেখানে ঝুঁকিপূর্ণ অংশগুলো নিরাপদ বিকল্প দিয়ে ঠিক করা হয়েছে"\n'
-            "}"
+            "  ]\n"
+            "}\n"
+            "If no violations found, return violations: [], status: 'clean', safetyScore: 100. Do NOT rewrite the full script. Be extremely fast."
         )
 
         payload = {
@@ -317,7 +150,9 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                 }
             ],
             "generationConfig": {
-                "responseMimeType": "application/json"
+                "responseMimeType": "application/json",
+                "temperature": 0.1,
+                "maxOutputTokens": 1024
             }
         }
 
@@ -327,22 +162,18 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
         used_key_idx = 0
         used_model = ""
 
-        # Loop through keys and dynamic models
-        for k_idx, current_key in enumerate(keys_list):
-            supported = fetch_supported_models(current_key)
-            flash_models = [m for m in supported if "flash" in m.lower() and not m.endswith("-tts")]
-            other_models = [m for m in supported if not m.endswith("-tts") and m not in flash_models]
-            
-            candidate_models = []
-            for m in flash_models + other_models:
-                if m not in candidate_models:
-                    candidate_models.append(m)
-            
-            for fb in ["gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
-                if fb not in candidate_models:
-                    candidate_models.append(fb)
+        # Prioritize ultra-fast production models first
+        candidate_models = [
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemini-3.8-flash",
+            "gemini-2.0-flash-lite",
+            "gemini-1.5-flash-8b"
+        ]
 
-            print(f"[Policy Check] Key #{k_idx+1}: evaluating models {candidate_models[:4]}...", flush=True)
+        # Loop through keys
+        for k_idx, current_key in enumerate(keys_list):
+            print(f"[Policy Check] Key #{k_idx+1}: checking text...", flush=True)
 
             for current_model in candidate_models:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={current_key}"
@@ -353,8 +184,7 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                     method="POST"
                 )
                 try:
-                    print(f"[Policy Check] Trying model: {current_model}...", flush=True)
-                    with urllib.request.urlopen(api_req, timeout=90) as response:
+                    with urllib.request.urlopen(api_req, timeout=15) as response:
                         resp_data = response.read()
                         resp_json = json.loads(resp_data.decode("utf-8"))
                         candidates = resp_json.get("candidates", [])
@@ -364,12 +194,12 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                         raw_json_str = "".join([p.get("text", "") for p in parts if "text" in p]).strip()
                         if raw_json_str:
                             import re
-                            clean_str = re.sub(r'^```(?:json)?\s*', '', raw_json_str)
-                            clean_str = re.sub(r'\s*```$', '', clean_str).strip()
+                            clean_str = re.sub(r'^\s*```(?:json)?\s*', '', raw_json_str)
+                            clean_str = re.sub(r'\s*```\s*$', '', clean_str).strip()
                             analysis_data = json.loads(clean_str)
                             used_key_idx = k_idx
                             used_model = current_model
-                            print(f"[Policy Check SUCCESS] Model: {current_model} completed scan!", flush=True)
+                            print(f"[Policy Check SUCCESS] Model: {current_model} completed scan in ultra-fast mode!", flush=True)
                             break
                 except urllib.error.HTTPError as e:
                     err_body = e.read().decode("utf-8", errors="replace")
@@ -379,14 +209,13 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                     except Exception:
                         last_error = err_body
                     
-                    print(f"[Policy Check Model {current_model} Failed] Code: {e.code}, Message: {last_error}", flush=True)
+                    print(f"[Policy Check Model {current_model} Note] Code: {e.code}, Message: {last_error}", flush=True)
                     is_quota = e.code == 429 or "quota" in last_error.lower() or "resource_exhausted" in last_error.lower() or "rate limit" in last_error.lower()
                     if is_quota:
-                        # Quota exceeded on this key -> switch to next key
+                        # Quota exceeded on this key -> switch to next key immediately
                         print(f"[Policy Check Quota Exceeded] Switching to next key...", flush=True)
                         break
                     else:
-                        # Model not available or unsupported -> try next candidate model
                         continue
                 except Exception as e:
                     last_error = str(e)
@@ -400,6 +229,15 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                 "error": f"ইউটিউব পলিসি স্ক্যান করা যায়নি: {last_error or 'Gemini কোনো ফলাফল দেয়নি।'}"
             })
             return
+
+        # Instant safe text generation in-memory
+        safe_text = text
+        for v in analysis_data.get("violations", []):
+            w = (v.get("word") or "").strip()
+            s = (v.get("suggestedWord") or "").strip()
+            if w and s:
+                safe_text = safe_text.replace(w, s)
+        analysis_data["safeCorrectedText"] = safe_text
 
         self.send_json_response(200, {
             "success": True,

@@ -63,8 +63,8 @@ function init() {
   // Event Listeners
   setupEventListeners();
 
-  // Audio-to-Text & YouTube Policy Scanner
-  setupAudioScanner();
+  // YouTube Policy Scanner
+  setupPolicyScanner();
 
   if (elements.mainTextInput && elements.mainTextInput.value.trim()) {
     updateTextStats();
@@ -856,30 +856,23 @@ function getDemoText() {
 }
 
 // ==========================================
-// Audio-to-Text & YouTube Policy Scanner Module
+// YouTube Policy & Monetization Scanner Module
 // ==========================================
 
-let scannerAudioFile = null;
-let scannerAudioBase64 = null;
-let scannerTranscribedText = '';
 let scannerPolicyAnalysis = null;
+let currentPolicyScannedText = '';
 
-function setupAudioScanner() {
+function setupPolicyScanner() {
   const toggleBtn = document.getElementById('toggleAudioScannerBtn');
   const toggleText = document.getElementById('toggleScannerText');
   const chevronIcon = document.getElementById('scannerChevronIcon');
   const content = document.getElementById('audioScannerContent');
 
-  const dropzone = document.getElementById('audioDropzone');
-  const fileInput = document.getElementById('audioFileInput');
-  const selectedAudioCard = document.getElementById('selectedAudioCard');
-  const audioFileName = document.getElementById('audioFileName');
-  const audioFileSize = document.getElementById('audioFileSize');
-  const audioPreviewPlayer = document.getElementById('audioPreviewPlayer');
-  const removeFileBtn = document.getElementById('removeAudioFileBtn');
+  const policyTextInput = document.getElementById('policyTextInput');
+  const pullFromMainBtn = document.getElementById('pullFromMainBtn');
+  const clearPolicyTextBtn = document.getElementById('clearPolicyTextBtn');
+  const startPolicyCheckBtn = document.getElementById('startPolicyCheckBtn');
 
-  const transcribeAndCheckBtn = document.getElementById('transcribeAndCheckBtn');
-  const transcribeOnlyBtn = document.getElementById('transcribeOnlyBtn');
   const loadingState = document.getElementById('scannerLoadingState');
   const loadingText = document.getElementById('scannerLoadingText');
 
@@ -902,371 +895,75 @@ function setupAudioScanner() {
     }
   });
 
-  // Prevent file input click from bubbling
-  if (fileInput) {
-    fileInput.addEventListener('click', (e) => {
-      e.stopPropagation();
-    });
-
-    fileInput.addEventListener('change', (e) => {
-      if (e.target.files && e.target.files.length > 0) {
-        handleSelectedAudioFile(e.target.files[0]);
-      }
-    });
-  }
-
-  // Drag & drop handlers on dropzone
-  if (dropzone) {
-    dropzone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropzone.classList.add('border-teal-400', 'bg-teal-500/10');
-    });
-    ['dragleave', 'dragend'].forEach(type => {
-      dropzone.addEventListener(type, () => {
-        dropzone.classList.remove('border-teal-400', 'bg-teal-500/10');
-      });
-    });
-    dropzone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropzone.classList.remove('border-teal-400', 'bg-teal-500/10');
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        handleSelectedAudioFile(e.dataTransfer.files[0]);
-      }
-    });
-  }
-
-  const changeAudioFileBtn = document.getElementById('changeAudioFileBtn');
-  if (changeAudioFileBtn && fileInput) {
-    changeAudioFileBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      fileInput.click();
-    });
-  }
-
-  if (removeFileBtn) {
-    removeFileBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      resetAudioFileSelection();
-    });
-  }
-
-  function resetAudioFileSelection() {
-    scannerAudioFile = null;
-    scannerAudioBase64 = null;
-    if (fileInput) fileInput.value = '';
-    if (selectedAudioCard) selectedAudioCard.style.display = 'none';
-    if (dropzone) dropzone.style.display = 'block';
-    if (transcribeAndCheckBtn) {
-      transcribeAndCheckBtn.disabled = true;
-      transcribeAndCheckBtn.classList.add('opacity-40', 'cursor-not-allowed');
-    }
-    if (transcribeOnlyBtn) {
-      transcribeOnlyBtn.disabled = true;
-      transcribeOnlyBtn.classList.add('opacity-40', 'cursor-not-allowed');
-    }
-    if (audioPreviewPlayer) {
-      audioPreviewPlayer.pause();
-      if (audioPreviewPlayer.src) {
-        URL.revokeObjectURL(audioPreviewPlayer.src);
-        audioPreviewPlayer.src = '';
-      }
-    }
-  }
-
-  function audioBufferToWav(buffer) {
-    const numChannels = 1;
-    const sampleRate = buffer.sampleRate;
-    const format = 1; // 1 = PCM
-    const bitDepth = 16;
-    const bytesPerSample = bitDepth / 8;
-    const blockAlign = numChannels * bytesPerSample;
-
-    let data;
-    if (buffer.numberOfChannels === 1) {
-      data = buffer.getChannelData(0);
-    } else {
-      const left = buffer.getChannelData(0);
-      const right = buffer.getChannelData(1);
-      data = new Float32Array(buffer.length);
-      for (let i = 0; i < buffer.length; i++) {
-        data[i] = (left[i] + right[i]) / 2;
-      }
-    }
-
-    const dataLength = data.length * bytesPerSample;
-    const arrayBuffer = new ArrayBuffer(44 + dataLength);
-    const view = new DataView(arrayBuffer);
-
-    function writeStr(offset, str) {
-      for (let i = 0; i < str.length; i++) {
-        view.setUint8(offset + i, str.charCodeAt(i));
-      }
-    }
-
-    writeStr(0, 'RIFF');
-    view.setUint32(4, 36 + dataLength, true);
-    writeStr(8, 'WAVE');
-    writeStr(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, format, true);
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * blockAlign, true);
-    view.setUint16(32, blockAlign, true);
-    view.setUint16(34, bitDepth, true);
-    writeStr(36, 'data');
-    view.setUint32(40, dataLength, true);
-
-    let offset = 44;
-    for (let i = 0; i < data.length; i++) {
-      const s = Math.max(-1, Math.min(1, data[i]));
-      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-      offset += 2;
-    }
-
-    return new Blob([view], { type: 'audio/wav' });
-  }
-
-  async function prepareOptimizedAudioFile(file) {
-    // If already compressed audio and under 2.5MB, no resample needed
-    if (file.size <= 2.5 * 1024 * 1024 && (file.type.includes('mp3') || file.type.includes('mpeg') || file.name.endsWith('.mp3'))) {
-      return file;
-    }
-
-    // Resample down to 16kHz mono WAV (speech recognition standard) using Web Audio API
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return file;
-
-      const tempCtx = new AudioCtx();
-      const decoded = await tempCtx.decodeAudioData(arrayBuffer);
-      await tempCtx.close();
-
-      const targetSampleRate = 16000;
-      const targetLength = Math.ceil(decoded.duration * targetSampleRate);
-      const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-      const offline = new OfflineCtx(1, targetLength, targetSampleRate);
-
-      const src = offline.createBufferSource();
-      src.buffer = decoded;
-      src.connect(offline.destination);
-      src.start(0);
-
-      const rendered = await offline.startRendering();
-      const wavBlob = audioBufferToWav(rendered);
-      console.log(`[Audio Resample] Reduced ${(file.size / (1024 * 1024)).toFixed(2)}MB -> ${(wavBlob.size / (1024 * 1024)).toFixed(2)}MB (16kHz Mono WAV)`);
-      return new File([wavBlob], file.name.replace(/\.[^.]+$/, '') + '.wav', { type: 'audio/wav' });
-    } catch (err) {
-      console.warn('[Audio Resample] Fallback to original audio:', err);
-      return file;
-    }
-  }
-
-  function readAudioFileAsBase64(file) {
-    if (scannerAudioBase64 && scannerAudioFile === file) {
-      return Promise.resolve(scannerAudioBase64);
-    }
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result;
-        const base64Index = typeof result === 'string' ? result.indexOf('base64,') : -1;
-        const b64 = base64Index !== -1 ? result.substring(base64Index + 7) : result;
-        scannerAudioBase64 = b64;
-        resolve(b64);
-      };
-      reader.onerror = () => {
-        reject(new Error('অডিও ফাইল রিড করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।'));
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  function handleSelectedAudioFile(file) {
-    if (!file) return;
-
-    // Check extension and mime type (relaxed for all valid audio formats)
-    const validExts = /\.(mp3|wav|m4a|ogg|webm|aac|flac|opus|wma|mp4|m4b)$/i;
-    const isAudioType = file.type ? (file.type.startsWith('audio/') || file.type.includes('mp4') || file.type.includes('ogg')) : false;
-
-    if (!isAudioType && !validExts.test(file.name)) {
-      showToast('অনুগ্রহ করে একটি সঠিক অডিও ফাইল (MP3, WAV, M4A, OGG, WEBM) সিলেক্ট করুন।', 'error');
-      return;
-    }
-
-    const maxSizeBytes = 25 * 1024 * 1024; // 25 MB
-    if (file.size > maxSizeBytes) {
-      showToast('অডিও ফাইলটি অনেক বড়! সর্বোচ্চ ২৫ মেগাবাইট পর্যন্ত ফাইল আপলোড করতে পারবেন।', 'error');
-      return;
-    }
-
-    scannerAudioFile = file;
-    scannerAudioBase64 = null;
-
-    if (audioFileName) audioFileName.textContent = file.name;
-    if (audioFileSize) audioFileSize.textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
-    
-    if (audioPreviewPlayer) {
-      try {
-        if (audioPreviewPlayer.src) URL.revokeObjectURL(audioPreviewPlayer.src);
-      } catch (e) {}
-      audioPreviewPlayer.src = URL.createObjectURL(file);
-      audioPreviewPlayer.load();
-    }
-
-    if (dropzone) dropzone.style.display = 'none';
-    if (selectedAudioCard) selectedAudioCard.style.display = 'flex';
-
-    if (transcribeAndCheckBtn) {
-      transcribeAndCheckBtn.disabled = false;
-      transcribeAndCheckBtn.classList.remove('opacity-40', 'cursor-not-allowed');
-    }
-    if (transcribeOnlyBtn) {
-      transcribeOnlyBtn.disabled = false;
-      transcribeOnlyBtn.classList.remove('opacity-40', 'cursor-not-allowed');
-    }
-
-    if (window.lucide) window.lucide.createIcons();
-
-    // Pre-read base64 asynchronously
-    readAudioFileAsBase64(file).catch(err => {
-      console.warn('Pre-reading audio file warning:', err);
-    });
-
-    showToast(`"${file.name}" অডিও ফাইল প্রস্তুত!`, 'success');
-  }
-
-  // Transcribe & Check Button
-  if (transcribeAndCheckBtn) {
-    transcribeAndCheckBtn.addEventListener('click', () => {
-      runAudioPipeline(true);
-    });
-  }
-
-  // Transcribe Only Button
-  if (transcribeOnlyBtn) {
-    transcribeOnlyBtn.addEventListener('click', () => {
-      runAudioPipeline(false);
-    });
-  }
-
-  // Check Main Text Policy Button
-  if (checkMainTextPolicyBtn) {
-    checkMainTextPolicyBtn.addEventListener('click', () => {
-      const text = elements.mainTextInput.value.trim();
-      if (!text) {
-        showToast('প্রথমে মূল টেক্সট বক্সে কিছু লিখুন বা পেস্ট করুন।', 'error');
-        elements.mainTextInput.focus();
+  // Pull Text from Main Box
+  if (pullFromMainBtn && policyTextInput) {
+    pullFromMainBtn.addEventListener('click', () => {
+      const mainText = elements.mainTextInput ? elements.mainTextInput.value.trim() : '';
+      if (!mainText) {
+        showToast('মূল টেক্সট বক্সে কোনো লেখা নেই! প্রথমে কিছু লিখুন।', 'info');
+        if (elements.mainTextInput) elements.mainTextInput.focus();
         return;
       }
-      content.classList.remove('hidden');
-      toggleText.textContent = 'প্যানেলটি লুকান';
-      if (chevronIcon) chevronIcon.style.transform = 'rotate(0deg)';
+      policyTextInput.value = mainText;
+      showToast('মূল বক্স থেকে লেখা পলিসি স্ক্যানারে আনা হয়েছে!', 'success');
+    });
+  }
+
+  // Clear Policy Text
+  if (clearPolicyTextBtn && policyTextInput) {
+    clearPolicyTextBtn.addEventListener('click', () => {
+      policyTextInput.value = '';
+      if (policyResultsSection) policyResultsSection.classList.add('hidden');
+      scannerPolicyAnalysis = null;
+      currentPolicyScannedText = '';
+      policyTextInput.focus();
+    });
+  }
+
+  // Check Main Text Policy Button (placed beside the main text box)
+  if (checkMainTextPolicyBtn) {
+    checkMainTextPolicyBtn.addEventListener('click', () => {
+      const text = elements.mainTextInput ? elements.mainTextInput.value.trim() : '';
+      if (!text) {
+        showToast('প্রথমে মূল টেক্সট বক্সে কিছু লিখুন বা পেস্ট করুন।', 'error');
+        if (elements.mainTextInput) elements.mainTextInput.focus();
+        return;
+      }
+      // Expand panel if hidden
+      if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        toggleText.textContent = 'প্যানেলটি লুকান';
+        if (chevronIcon) chevronIcon.style.transform = 'rotate(0deg)';
+      }
+      if (policyTextInput) {
+        policyTextInput.value = text;
+      }
+      const scannerSection = document.getElementById('youtubePolicySection');
+      if (scannerSection) {
+        scannerSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
       executePolicyCheck(text);
     });
   }
 
-  async function runAudioPipeline(checkPolicyAfter) {
-    // Auto-capture API key if entered in input box but not saved
-    if (!state.apiKey && elements.apiKeyInput && elements.apiKeyInput.value.trim()) {
-      state.apiKey = elements.apiKeyInput.value.trim();
-      localStorage.setItem('gemini_api_key', state.apiKey);
-      updateApiKeyStatus(true);
-    }
-
-    if (!state.apiKey) {
-      elements.settingsPanel.classList.remove('hidden');
-      elements.apiKeyInput.focus();
-      showToast('প্রথমে আপনার Google AI Studio API Key প্রদান করুন।', 'error');
-      return;
-    }
-
-    if (!scannerAudioFile) {
-      showToast('অনুগ্রহ করে প্রথমে একটি অডিও ফাইল সিলেক্ট করুন।', 'error');
-      return;
-    }
-
-    loadingState.classList.remove('hidden');
-    policyResultsSection.classList.add('hidden');
-    loadingText.textContent = 'অডিও অপ্টিমাইজ করা হচ্ছে...';
-    transcribeAndCheckBtn.disabled = true;
-    transcribeOnlyBtn.disabled = true;
-
-    try {
-      const optimizedFile = await prepareOptimizedAudioFile(scannerAudioFile);
-      const audioBase64 = await readAudioFileAsBase64(optimizedFile);
-      if (!audioBase64) {
-        throw new Error('অডিও ফাইল রিড করা যায়নি।');
+  // Start Policy Check Button (inside the scanner panel)
+  if (startPolicyCheckBtn) {
+    startPolicyCheckBtn.addEventListener('click', () => {
+      let text = policyTextInput ? policyTextInput.value.trim() : '';
+      // If policy box is empty, check if main box has text
+      if (!text && elements.mainTextInput && elements.mainTextInput.value.trim()) {
+        text = elements.mainTextInput.value.trim();
+        if (policyTextInput) policyTextInput.value = text;
       }
 
-      loadingText.textContent = 'অডিও শুনছে এবং টেক্সটে রূপান্তর করছে (Gemini STT)...';
-
-      const isFirebase = window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com');
-      const transcribeUrl = isFirebase 
-        ? 'https://gemini-audio-studio-seven.vercel.app/api/transcribe-audio' 
-        : (window.location.protocol === 'file:' || window.location.port === '5500' || window.location.port === '5501')
-          ? 'http://localhost:5000/api/transcribe-audio'
-          : '/api/transcribe-audio';
-
-      // Detect MIME type safely
-      let mimeType = optimizedFile.type;
-      if (!mimeType || mimeType === 'application/octet-stream') {
-        const ext = (optimizedFile.name.split('.').pop() || 'mp3').toLowerCase();
-        if (ext === 'wav') mimeType = 'audio/wav';
-        else if (ext === 'mp3') mimeType = 'audio/mp3';
-        else if (ext === 'm4a') mimeType = 'audio/mp4';
-        else if (ext === 'ogg') mimeType = 'audio/ogg';
-        else if (ext === 'webm') mimeType = 'audio/webm';
-        else if (ext === 'aac') mimeType = 'audio/aac';
-        else mimeType = 'audio/wav';
+      if (!text) {
+        showToast('অনুগ্রহ করে পলিসি চেক করার জন্য কোনো টেক্সট বা স্ক্রিপ্ট লিখুন।', 'error');
+        if (policyTextInput) policyTextInput.focus();
+        return;
       }
 
-      const resp = await fetch(transcribeUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audioBase64: audioBase64,
-          mimeType: mimeType,
-          fileName: optimizedFile.name,
-          apiKey: state.apiKey,
-          apiKeys: parseKeys(state.apiKey)
-        })
-      });
-
-      const textResp = await resp.text();
-      let data;
-      try {
-        data = JSON.parse(textResp);
-      } catch (jsonErr) {
-        if (resp.status === 413 || textResp.includes('Request Entity Too Large') || textResp.includes('FUNCTION_PAYLOAD_TOO_LARGE')) {
-          throw new Error('অডিও ফাইলটি সার্ভারের সাইজ সীমা অতিক্রম করেছে। অনুগ্রহ করে একটি ছোট অডিও ফাইল দিন।');
-        }
-        throw new Error(textResp || `সার্ভার ত্রুটি (${resp.status})`);
-      }
-
-      if (!resp.ok || !data.success) {
-        throw new Error(data.error || 'অডিও ট্রান্সক্রিপশন ব্যর্থ হয়েছে।');
-      }
-
-      scannerTranscribedText = data.transcription || '';
-      showToast('অডিও সফলভাবে টেক্সটে রূপান্তর হয়েছে!', 'success');
-
-      if (checkPolicyAfter) {
-        loadingText.textContent = 'ইউটিউব কমিউনিটি ও মনিটাইজেশন পলিসি স্ক্যান হচ্ছে...';
-        await executePolicyCheck(scannerTranscribedText);
-      } else {
-        renderTranscriptionOnly(scannerTranscribedText);
-      }
-
-    } catch (err) {
-      console.error('Audio Pipeline Error:', err);
-      showToast('ত্রুটি: ' + err.message, 'error');
-    } finally {
-      loadingState.classList.add('hidden');
-      transcribeAndCheckBtn.disabled = false;
-      transcribeOnlyBtn.disabled = false;
-    }
+      executePolicyCheck(text);
+    });
   }
 
   async function executePolicyCheck(textToAnalyze) {
@@ -1284,9 +981,10 @@ function setupAudioScanner() {
       return;
     }
 
-    loadingState.classList.remove('hidden');
-    policyResultsSection.classList.add('hidden');
-    loadingText.textContent = 'ইউটিউব কমিউনিটি ও মনিটাইজেশন পলিসি স্ক্যান হচ্ছে...';
+    if (loadingState) loadingState.classList.remove('hidden');
+    if (policyResultsSection) policyResultsSection.classList.add('hidden');
+    if (loadingText) loadingText.textContent = 'ইউটিউব কমিউনিটি ও মনিটাইজেশন পলিসি স্ক্যান হচ্ছে...';
+    if (startPolicyCheckBtn) startPolicyCheckBtn.disabled = true;
 
     try {
       const isFirebase = window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com');
@@ -1319,6 +1017,7 @@ function setupAudioScanner() {
       }
 
       scannerPolicyAnalysis = data.analysis;
+      currentPolicyScannedText = textToAnalyze;
       renderPolicyResults(data.analysis, textToAnalyze);
       showToast('ইউটিউব পলিসি স্ক্যান সম্পন্ন হয়েছে!', 'success');
 
@@ -1326,39 +1025,13 @@ function setupAudioScanner() {
       console.error('Policy Check Error:', err);
       showToast('পলিসি স্ক্যানে সমস্যা হয়েছে: ' + err.message, 'error');
     } finally {
-      loadingState.classList.add('hidden');
+      if (loadingState) loadingState.classList.add('hidden');
+      if (startPolicyCheckBtn) startPolicyCheckBtn.disabled = false;
     }
-  }
-
-  function renderTranscriptionOnly(text) {
-    policyResultsSection.classList.remove('hidden');
-    const safetyScoreCircle = document.getElementById('safetyScoreCircle');
-    const safetyScoreTitle = document.getElementById('safetyScoreTitle');
-    const safetyStatusBadge = document.getElementById('safetyStatusBadge');
-    const safetyScoreSummary = document.getElementById('safetyScoreSummary');
-    const violationsCard = document.getElementById('violationsCard');
-    const highlightedTextView = document.getElementById('highlightedTextView');
-
-    if (safetyScoreCircle) {
-      safetyScoreCircle.textContent = '100%';
-      safetyScoreCircle.className = 'w-13 h-13 rounded-xl flex items-center justify-center font-black text-lg bg-teal-500/10 text-teal-400 border-teal-500/30';
-    }
-    if (safetyScoreTitle) {
-      safetyScoreTitle.innerHTML = 'অডিও ট্রান্সক্রিপশন সম্পন্ন <span id="safetyStatusBadge" class="text-[10px] bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded-full font-semibold">রেডি</span>';
-    }
-    if (safetyScoreSummary) {
-      safetyScoreSummary.textContent = 'আপনার অডিও থেকে সম্পূর্ণ টেক্সট বের করা হয়েছে। প্রয়োজন হলে ডানদিকের "মূল বক্সে নিন ও অডিও বানান" বাটনে চাপ দিয়ে সরাসরি ভয়েস তৈরি করতে পারেন।';
-    }
-    if (violationsCard) violationsCard.classList.add('hidden');
-
-    if (highlightedTextView) highlightedTextView.textContent = text;
-    if (safeTextEditor) safeTextEditor.value = text;
-    policyResultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    if (window.lucide) window.lucide.createIcons();
   }
 
   function renderPolicyResults(analysis, originalText) {
-    policyResultsSection.classList.remove('hidden');
+    if (policyResultsSection) policyResultsSection.classList.remove('hidden');
     const safetyScoreCircle = document.getElementById('safetyScoreCircle');
     const safetyScoreTitle = document.getElementById('safetyScoreTitle');
     const safetyStatusBadge = document.getElementById('safetyStatusBadge');
@@ -1373,7 +1046,7 @@ function setupAudioScanner() {
 
     if (safetyScoreCircle && safetyStatusBadge) {
       if (score >= 90) {
-        safetyScoreCircle.className = 'w-13 h-13 rounded-xl flex items-center justify-center font-black text-lg bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+        safetyScoreCircle.className = 'w-13 h-13 rounded-xl flex items-center justify-center font-black text-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
         safetyStatusBadge.className = 'text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-semibold';
         safetyStatusBadge.textContent = 'নিরাপদ (Clean)';
       } else if (score >= 70) {
@@ -1388,7 +1061,22 @@ function setupAudioScanner() {
     }
 
     if (safetyScoreSummary) safetyScoreSummary.textContent = analysis.summary || 'পলিসি পর্যালোচনা সম্পন্ন হয়েছে।';
-    if (safeTextEditor) safeTextEditor.value = analysis.safeCorrectedText || originalText;
+    if (safeTextEditor) {
+      if (analysis.safeCorrectedText) {
+        safeTextEditor.value = analysis.safeCorrectedText;
+      } else {
+        let safe = originalText;
+        violations.forEach(v => {
+          const w = (v.word || '').trim();
+          const s = (v.suggestedWord || '').trim();
+          if (w && s) {
+            safe = safe.replaceAll(w, s);
+          }
+        });
+        analysis.safeCorrectedText = safe;
+        safeTextEditor.value = safe;
+      }
+    }
 
     const violations = Array.isArray(analysis.violations) ? analysis.violations : [];
     if (violationsCount) violationsCount.textContent = violations.length;
@@ -1451,7 +1139,9 @@ function setupAudioScanner() {
       }
     }
 
-    policyResultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (policyResultsSection) {
+      policyResultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
     if (window.lucide) window.lucide.createIcons();
   }
 
@@ -1459,7 +1149,7 @@ function setupAudioScanner() {
   if (applyAutoFixBtn) {
     applyAutoFixBtn.addEventListener('click', () => {
       if (scannerPolicyAnalysis && scannerPolicyAnalysis.safeCorrectedText) {
-        safeTextEditor.value = scannerPolicyAnalysis.safeCorrectedText;
+        if (safeTextEditor) safeTextEditor.value = scannerPolicyAnalysis.safeCorrectedText;
         const highlightedTextView = document.getElementById('highlightedTextView');
         if (highlightedTextView) {
           highlightedTextView.innerHTML = `<span class="text-emerald-400">${escapeHtml(scannerPolicyAnalysis.safeCorrectedText)}</span>`;
@@ -1474,7 +1164,7 @@ function setupAudioScanner() {
   // Send to Main Voice Studio Box
   if (sendToMainBoxBtn) {
     sendToMainBoxBtn.addEventListener('click', () => {
-      const textToSend = (safeTextEditor ? safeTextEditor.value.trim() : '') || scannerTranscribedText.trim();
+      const textToSend = (safeTextEditor ? safeTextEditor.value.trim() : '') || currentPolicyScannedText.trim();
       if (!textToSend) {
         showToast('পাঠানোর মতো কোনো টেক্সট নেই!', 'error');
         return;
@@ -1483,7 +1173,7 @@ function setupAudioScanner() {
       updateTextStats();
       splitText();
       elements.mainTextInput.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      showToast('টেক্সট সফলভাবে মূল বক্সে যোগ করা হয়েছে এবং প্রতি ১০ লাইনে ভাগ করা হয়েছে!', 'success');
+      showToast('টেক্সট সফলভাবে মূল বক্সে যোগ করা হয়েছে এবং প্রতি ১০ বাক্যে/লাইনে ভাগ করা হয়েছে!', 'success');
     });
   }
 
@@ -1491,10 +1181,10 @@ function setupAudioScanner() {
   if (copyTranscribedBtn) {
     copyTranscribedBtn.addEventListener('click', () => {
       const highlightedTextView = document.getElementById('highlightedTextView');
-      const text = scannerTranscribedText || (highlightedTextView ? highlightedTextView.innerText : '');
+      const text = currentPolicyScannedText || (highlightedTextView ? highlightedTextView.innerText : '');
       if (text) {
         navigator.clipboard.writeText(text);
-        showToast('মূল ট্রান্সক্রিপ্ট ক্লিপবোর্ডে কপি হয়েছে!', 'info');
+        showToast('মূল টেক্সট ক্লিপবোর্ডে কপি হয়েছে!', 'info');
       }
     });
   }

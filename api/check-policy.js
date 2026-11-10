@@ -61,27 +61,25 @@ export default async function handler(req, res) {
     }
 
     const prompt = (
-      "You are a professional YouTube Community Guidelines & Advertiser-Friendly Monetization Policy Specialist.\n\n" +
-      "Carefully analyze the following script for potential YouTube policy violations or demonetization/yellow-dollar risks " +
-      "(e.g., hate speech, severe profanity/vulgarity, violence, harassment, harmful misinformation, sexual content, sensitive/controversial tragedy triggers, advertiser-unfriendly terms).\n\n" +
-      "Script to evaluate:\n" +
-      `"""${text.trim()}"""\n\n` +
-      "Return your evaluation strictly in the following JSON schema:\n" +
+      "You are an ultra-fast YouTube Community Guidelines & Advertiser-Friendly Monetization Policy Evaluator.\n" +
+      "Analyze the text below for policy violations (hate speech, severe profanity/vulgarity, violence, harassment, harmful misinformation, sexual content, advertiser-unfriendly/demonetization risks).\n\n" +
+      `Text to check:\n"""${text.trim()}"""\n\n` +
+      "Return STRICT JSON only matching this schema:\n" +
       "{\n" +
-      '  "safetyScore": 85,\n' +
+      '  "safetyScore": 95,\n' +
       '  "status": "clean" | "warning" | "violation",\n' +
-      '  "summary": "বাংলায় সামগ্রিক পর্যালোচনার বিবরণ (১-২ বাক্য)",\n' +
+      '  "summary": "বাংলায় ১টি সংক্ষিপ্ত বাক্যে সামগ্রিক মূল্যায়ন",\n' +
       '  "violations": [\n' +
       "    {\n" +
-      '      "word": "শব্দ বা বাক্য অংশ",\n' +
-      '      "category": "গালিগালাজ / অশ্লীল" | "ঘৃণামূলক বক্তব্য (Hate Speech)" | "হয়রানি (Harassment)" | "সহিংসতা (Violence)" | "মনিটাইজেশন ঝুঁকি (Demonetization)" | "ভ্রান্ত তথ্য (Misinformation)",\n' +
+      '      "word": "স্ক্রিপ্টে থাকা মূল ঝুঁকিপূর্ণ শব্দটি",\n' +
+      '      "category": "গালিগালাজ" | "ঘৃণামূলক বক্তব্য" | "হয়রানি" | "সহিংসতা" | "মনিটাইজেশন ঝুঁকি",\n' +
       '      "severity": "high" | "medium" | "low",\n' +
-      '      "reason": "বাংলায় সহজভাবে কেন এটি ইউটিউবের পলিসির পরিপন্থী",\n' +
-      '      "suggestedWord": "শালীন ও নিরাপদ বিকল্প বাংলা শব্দ"\n' +
+      '      "reason": "কেন এটি ইউটিউবের পলিসির পরিপন্থী (খুব সংক্ষেপে)",\n' +
+      '      "suggestedWord": "নিরাপদ শালীন বিকল্প বাংলা শব্দ"\n' +
       "    }\n" +
-      "  ],\n" +
-      '  "safeCorrectedText": "সম্পূর্ণ টেক্সটের একটি ১০০% ইউটিউব-সেইফ ও শালীন সংস্করণ যেখানে ঝুঁকিপূর্ণ অংশগুলো নিরাপদ বিকল্প দিয়ে ঠিক করা হয়েছে"\n' +
-      "}"
+      "  ]\n" +
+      "}\n" +
+      "If no violations found, return violations: [], status: 'clean', safetyScore: 100. Do NOT rewrite the full script. Be extremely fast."
     );
 
     const payload = {
@@ -95,25 +93,28 @@ export default async function handler(req, res) {
         }
       ],
       generationConfig: {
-        responseMimeType: "application/json"
+        responseMimeType: "application/json",
+        temperature: 0.1,
+        maxOutputTokens: 1024
       }
     };
+
+    let lastError = '';
+    let analysisData = null;
+    let usedKeyIndex = 0;
+    let usedModel = '';
+
+    const candidateModels = [
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-3.8-flash',
+      'gemini-2.0-flash-lite',
+      'gemini-1.5-flash-8b'
+    ];
 
     outerLoop:
     for (let k = 0; k < keysList.length; k++) {
       const activeKey = keysList[k];
-
-      const supported = await fetchSupportedModels(activeKey);
-      const flashModels = supported.filter(m => m.toLowerCase().includes('flash') && !m.endsWith('-tts'));
-      const otherModels = supported.filter(m => !m.endsWith('-tts') && !flashModels.includes(m));
-      const candidateModels = Array.from(new Set([
-        ...flashModels,
-        ...otherModels,
-        'gemini-3.8-flash',
-        'gemini-3.8-flash-lite',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash'
-      ]));
 
       for (const currentModel of candidateModels) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(activeKey)}`;
@@ -167,6 +168,17 @@ export default async function handler(req, res) {
         error: `ইউটিউব পলিসি স্ক্যান করা যায়নি: ${lastError || 'Gemini কোনো ফলাফল দেয়নি।'}`
       });
     }
+
+    // Instant safe text generation in-memory
+    let safeText = text;
+    for (const v of (analysisData.violations || [])) {
+      const w = (v.word || '').trim();
+      const s = (v.suggestedWord || '').trim();
+      if (w && s) {
+        safeText = safeText.replaceAll(w, s);
+      }
+    }
+    analysisData.safeCorrectedText = safeText;
 
     return res.status(200).json({
       success: true,
