@@ -1137,6 +1137,7 @@ function setupAudioScanner() {
         body: JSON.stringify({
           audioBase64: audioBase64,
           mimeType: mimeType,
+          fileName: scannerAudioFile ? scannerAudioFile.name : '',
           apiKey: state.apiKey,
           apiKeys: parseKeys(state.apiKey)
         })

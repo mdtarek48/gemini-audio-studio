@@ -3,6 +3,25 @@
  * Handles POST /api/check-policy
  */
 
+const cachedModels = new Map();
+
+async function fetchSupportedModels(apiKey) {
+  if (cachedModels.has(apiKey)) return cachedModels.get(apiKey);
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;
+    const resp = await fetch(url);
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    const list = (data.models || [])
+      .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map(m => (m.name || '').replace('models/', ''));
+    if (list.length > 0) cachedModels.set(apiKey, list);
+    return list;
+  } catch (e) {
+    return [];
+  }
+}
+
 export default async function handler(req, res) {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -80,15 +99,21 @@ export default async function handler(req, res) {
       }
     };
 
-    const candidateModels = ['gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
-    let lastError = null;
-    let analysisData = null;
-    let usedKeyIndex = -1;
-    let usedModel = '';
-
     outerLoop:
     for (let k = 0; k < keysList.length; k++) {
       const activeKey = keysList[k];
+
+      const supported = await fetchSupportedModels(activeKey);
+      const flashModels = supported.filter(m => m.toLowerCase().includes('flash') && !m.endsWith('-tts'));
+      const otherModels = supported.filter(m => !m.endsWith('-tts') && !flashModels.includes(m));
+      const candidateModels = Array.from(new Set([
+        ...flashModels,
+        ...otherModels,
+        'gemini-3.8-flash',
+        'gemini-3.8-flash-lite',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash'
+      ]));
 
       for (const currentModel of candidateModels) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(activeKey)}`;

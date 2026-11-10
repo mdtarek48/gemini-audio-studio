@@ -50,6 +50,31 @@ def pcm_to_wav(pcm_bytes: bytes, sample_rate: int = 24000, channels: int = 1, sa
         wav_file.writeframes(pcm_bytes)
     return wav_io.getvalue()
 
+CACHED_SUPPORTED_MODELS = {}
+
+def fetch_supported_models(api_key):
+    global CACHED_SUPPORTED_MODELS
+    if api_key in CACHED_SUPPORTED_MODELS and CACHED_SUPPORTED_MODELS[api_key]:
+        return list(CACHED_SUPPORTED_MODELS[api_key])
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+        req = urllib.request.Request(url, headers={"Content-Type": "application/json"}, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            models = []
+            for m in data.get("models", []):
+                clean_name = m.get("name", "").replace("models/", "")
+                methods = m.get("supportedGenerationMethods", [])
+                if "generateContent" in methods:
+                    models.append(clean_name)
+            if models:
+                CACHED_SUPPORTED_MODELS[api_key] = models
+                print(f"[ListModels] API Key supports {len(models)} models: {models[:6]}...", flush=True)
+            return list(models)
+    except Exception as e:
+        print(f"[ListModels Note] Could not list models: {e}", flush=True)
+        return []
+
 class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=PUBLIC_DIR, **kwargs)
@@ -83,9 +108,8 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
             keys_list = [k.strip() for k in re.split(r'[\n,;]+', api_key_raw) if k.strip()]
 
         audio_base64 = req_json.get("audioBase64", "").strip()
-        mime_type = req_json.get("mimeType", "audio/mp3").strip()
-        if not mime_type or mime_type == "application/octet-stream":
-            mime_type = "audio/mp3"
+        file_name = req_json.get("fileName", "")
+        mime_type = req_json.get("mimeType", "").strip()
 
         if not keys_list:
             self.send_json_response(400, {
@@ -97,19 +121,45 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json_response(400, {"error": "কোনো অডিও ডাটা পাওয়া যায়নি।"})
             return
 
+        # Sanitize base64 (strip prefix and invalid characters)
+        if "base64," in audio_base64:
+            audio_base64 = audio_base64.split("base64,")[-1]
+        import re
+        audio_base64 = re.sub(r'[^A-Za-z0-9+/=]', '', audio_base64)
+
+        # Normalize MIME type strictly to official Gemini supported formats
+        ext = file_name.split(".")[-1].lower() if "." in file_name else ""
+        m_lower = mime_type.lower()
+        if ext == "wav" or "wav" in m_lower:
+            mime_type = "audio/wav"
+        elif ext == "mp3" or "mpeg" in m_lower or "mp3" in m_lower:
+            mime_type = "audio/mp3"
+        elif ext == "m4a" or "mp4" in m_lower or "m4a" in m_lower:
+            mime_type = "audio/mp4"
+        elif ext == "ogg" or "ogg" in m_lower:
+            mime_type = "audio/ogg"
+        elif ext == "flac" or "flac" in m_lower:
+            mime_type = "audio/flac"
+        elif ext == "aac" or "aac" in m_lower:
+            mime_type = "audio/aac"
+        elif ext == "webm" or "webm" in m_lower:
+            mime_type = "audio/webm"
+        else:
+            mime_type = "audio/mp3"
+
         # Prepare multimodal request payload for Gemini Speech-to-Text
         payload = {
             "contents": [
                 {
                     "parts": [
                         {
+                            "text": "Please transcribe all spoken words in this audio verbatim with accurate spelling and punctuation in its original spoken language (such as Bengali or English). Do not add any conversational commentary, introduction, or timestamps. Return ONLY the exact transcribed text."
+                        },
+                        {
                             "inlineData": {
                                 "mimeType": mime_type,
                                 "data": audio_base64
                             }
-                        },
-                        {
-                            "text": "Please transcribe all spoken words in this audio verbatim with accurate spelling and punctuation in its original spoken language (such as Bengali or English). Do not add any conversational commentary, introduction, or timestamps. Return ONLY the exact transcribed text."
                         }
                     ]
                 }
@@ -117,14 +167,29 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
         }
 
         req_bytes = json.dumps(payload).encode("utf-8")
-        candidate_models = ["gemini-3.8-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
         last_error = ""
         transcription_text = ""
         used_key_idx = 0
         used_model = ""
 
-        # Loop through keys and candidate models
+        # Loop through keys and dynamically discovered models
         for k_idx, current_key in enumerate(keys_list):
+            supported = fetch_supported_models(current_key)
+            flash_models = [m for m in supported if "flash" in m.lower() and not m.endswith("-tts")]
+            other_models = [m for m in supported if not m.endswith("-tts") and m not in flash_models]
+            
+            candidate_models = []
+            for m in flash_models + other_models:
+                if m not in candidate_models:
+                    candidate_models.append(m)
+            
+            # Defaults as fallbacks
+            for fb in ["gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+                if fb not in candidate_models:
+                    candidate_models.append(fb)
+
+            print(f"[STT] Key #{k_idx+1}: evaluating models {candidate_models[:4]}...", flush=True)
+
             for current_model in candidate_models:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={current_key}"
                 api_req = urllib.request.Request(
@@ -134,6 +199,7 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                     method="POST"
                 )
                 try:
+                    print(f"[STT] Trying model: {current_model}...", flush=True)
                     with urllib.request.urlopen(api_req, timeout=120) as response:
                         resp_data = response.read()
                         resp_json = json.loads(resp_data.decode("utf-8"))
@@ -146,6 +212,7 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                             transcription_text = "".join(text_parts).strip()
                             used_key_idx = k_idx
                             used_model = current_model
+                            print(f"[STT SUCCESS] Model {current_model} transcribed {len(transcription_text)} chars!", flush=True)
                             break
                 except urllib.error.HTTPError as e:
                     err_body = e.read().decode("utf-8", errors="replace")
@@ -155,15 +222,18 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                     except Exception:
                         last_error = err_body
                     
+                    print(f"[STT Model {current_model} Failed] Code: {e.code}, Message: {last_error}", flush=True)
                     is_quota = e.code == 429 or "quota" in last_error.lower() or "resource_exhausted" in last_error.lower() or "rate limit" in last_error.lower()
                     if is_quota:
                         # Quota exceeded on this key -> switch to next key
+                        print(f"[STT Quota Exceeded] Switching to next key...", flush=True)
                         break
                     else:
                         # Model not available or unsupported -> try next candidate model
                         continue
                 except Exception as e:
                     last_error = str(e)
+                    print(f"[STT Exception] {e}", flush=True)
                     continue
             if transcription_text:
                 break
@@ -252,14 +322,28 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
         }
 
         req_bytes = json.dumps(payload).encode("utf-8")
-        candidate_models = ["gemini-3.8-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
         last_error = ""
         analysis_data = None
         used_key_idx = 0
         used_model = ""
 
-        # Loop through keys and candidate models
+        # Loop through keys and dynamic models
         for k_idx, current_key in enumerate(keys_list):
+            supported = fetch_supported_models(current_key)
+            flash_models = [m for m in supported if "flash" in m.lower() and not m.endswith("-tts")]
+            other_models = [m for m in supported if not m.endswith("-tts") and m not in flash_models]
+            
+            candidate_models = []
+            for m in flash_models + other_models:
+                if m not in candidate_models:
+                    candidate_models.append(m)
+            
+            for fb in ["gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+                if fb not in candidate_models:
+                    candidate_models.append(fb)
+
+            print(f"[Policy Check] Key #{k_idx+1}: evaluating models {candidate_models[:4]}...", flush=True)
+
             for current_model in candidate_models:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={current_key}"
                 api_req = urllib.request.Request(
@@ -269,6 +353,7 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                     method="POST"
                 )
                 try:
+                    print(f"[Policy Check] Trying model: {current_model}...", flush=True)
                     with urllib.request.urlopen(api_req, timeout=90) as response:
                         resp_data = response.read()
                         resp_json = json.loads(resp_data.decode("utf-8"))
@@ -284,6 +369,7 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                             analysis_data = json.loads(clean_str)
                             used_key_idx = k_idx
                             used_model = current_model
+                            print(f"[Policy Check SUCCESS] Model: {current_model} completed scan!", flush=True)
                             break
                 except urllib.error.HTTPError as e:
                     err_body = e.read().decode("utf-8", errors="replace")
@@ -293,15 +379,18 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                     except Exception:
                         last_error = err_body
                     
+                    print(f"[Policy Check Model {current_model} Failed] Code: {e.code}, Message: {last_error}", flush=True)
                     is_quota = e.code == 429 or "quota" in last_error.lower() or "resource_exhausted" in last_error.lower() or "rate limit" in last_error.lower()
                     if is_quota:
                         # Quota exceeded on this key -> switch to next key
+                        print(f"[Policy Check Quota Exceeded] Switching to next key...", flush=True)
                         break
                     else:
                         # Model not available or unsupported -> try next candidate model
                         continue
                 except Exception as e:
                     last_error = str(e)
+                    print(f"[Policy Check Exception] {e}", flush=True)
                     continue
             if analysis_data:
                 break
