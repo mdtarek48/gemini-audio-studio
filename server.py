@@ -57,8 +57,268 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/api/generate-audio":
             self.handle_generate_audio()
+        elif self.path == "/api/transcribe-audio":
+            self.handle_transcribe_audio()
+        elif self.path == "/api/check-policy":
+            self.handle_check_policy()
         else:
             self.send_error(404, "Endpoint not found")
+
+    def handle_transcribe_audio(self):
+        content_length = int(self.headers.get("Content-Length", 0))
+        post_data = self.rfile.read(content_length)
+
+        try:
+            req_json = json.loads(post_data.decode("utf-8"))
+        except Exception as e:
+            self.send_json_response(400, {"error": "Invalid JSON: " + str(e)})
+            return
+
+        api_key_raw = req_json.get("apiKey", "") or req_json.get("apiKeys", "") or os.environ.get("GEMINI_API_KEY", "")
+        keys_list = []
+        if isinstance(api_key_raw, list):
+            keys_list = [str(k).strip() for k in api_key_raw if str(k).strip()]
+        elif isinstance(api_key_raw, str):
+            import re
+            keys_list = [k.strip() for k in re.split(r'[\n,;]+', api_key_raw) if k.strip()]
+
+        audio_base64 = req_json.get("audioBase64", "").strip()
+        mime_type = req_json.get("mimeType", "audio/mp3").strip()
+        if not mime_type or mime_type == "application/octet-stream":
+            mime_type = "audio/mp3"
+
+        if not keys_list:
+            self.send_json_response(400, {
+                "error": "Google AI Studio API Key প্রয়োজন! অনুগ্রহ করে সেটিংস-এ আপনার API Key দিন।"
+            })
+            return
+
+        if not audio_base64:
+            self.send_json_response(400, {"error": "কোনো অডিও ডাটা পাওয়া যায়নি।"})
+            return
+
+        # Prepare multimodal request payload for Gemini Speech-to-Text
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "inlineData": {
+                                "mimeType": mime_type,
+                                "data": audio_base64
+                            }
+                        },
+                        {
+                            "text": "Please transcribe all spoken words in this audio verbatim with accurate spelling and punctuation in its original spoken language (such as Bengali or English). Do not add any conversational commentary, introduction, or timestamps. Return ONLY the exact transcribed text."
+                        }
+                    ]
+                }
+            ]
+        }
+
+        req_bytes = json.dumps(payload).encode("utf-8")
+        candidate_models = ["gemini-3.8-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+        last_error = ""
+        transcription_text = ""
+        used_key_idx = 0
+        used_model = ""
+
+        # Loop through keys and candidate models
+        for k_idx, current_key in enumerate(keys_list):
+            for current_model in candidate_models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={current_key}"
+                api_req = urllib.request.Request(
+                    url,
+                    data=req_bytes,
+                    headers={"Content-Type": "application/json"},
+                    method="POST"
+                )
+                try:
+                    with urllib.request.urlopen(api_req, timeout=120) as response:
+                        resp_data = response.read()
+                        resp_json = json.loads(resp_data.decode("utf-8"))
+                        candidates = resp_json.get("candidates", [])
+                        if not candidates:
+                            continue
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        text_parts = [p.get("text", "") for p in parts if "text" in p]
+                        if text_parts:
+                            transcription_text = "".join(text_parts).strip()
+                            used_key_idx = k_idx
+                            used_model = current_model
+                            break
+                except urllib.error.HTTPError as e:
+                    err_body = e.read().decode("utf-8", errors="replace")
+                    try:
+                        err_json = json.loads(err_body)
+                        last_error = err_json.get("error", {}).get("message", err_body)
+                    except Exception:
+                        last_error = err_body
+                    
+                    is_quota = e.code == 429 or "quota" in last_error.lower() or "resource_exhausted" in last_error.lower() or "rate limit" in last_error.lower()
+                    if is_quota:
+                        # Quota exceeded on this key -> switch to next key
+                        break
+                    else:
+                        # Model not available or unsupported -> try next candidate model
+                        continue
+                except Exception as e:
+                    last_error = str(e)
+                    continue
+            if transcription_text:
+                break
+
+        if not transcription_text:
+            self.send_json_response(400, {
+                "error": f"অডিও ট্রান্সক্রিপশন সম্পন্ন করা যায়নি: {last_error or 'Gemini কোনো টেক্সট দিতে পারেনি।'}"
+            })
+            return
+
+        self.send_json_response(200, {
+            "success": True,
+            "transcription": transcription_text,
+            "usedKeyIndex": used_key_idx + 1,
+            "totalKeys": len(keys_list),
+            "usedModel": used_model
+        })
+
+    def handle_check_policy(self):
+        content_length = int(self.headers.get("Content-Length", 0))
+        post_data = self.rfile.read(content_length)
+
+        try:
+            req_json = json.loads(post_data.decode("utf-8"))
+        except Exception as e:
+            self.send_json_response(400, {"error": "Invalid JSON: " + str(e)})
+            return
+
+        api_key_raw = req_json.get("apiKey", "") or req_json.get("apiKeys", "") or os.environ.get("GEMINI_API_KEY", "")
+        keys_list = []
+        if isinstance(api_key_raw, list):
+            keys_list = [str(k).strip() for k in api_key_raw if str(k).strip()]
+        elif isinstance(api_key_raw, str):
+            import re
+            keys_list = [k.strip() for k in re.split(r'[\n,;]+', api_key_raw) if k.strip()]
+
+        text = req_json.get("text", "").strip()
+
+        if not keys_list:
+            self.send_json_response(400, {
+                "error": "Google AI Studio API Key প্রয়োজন! অনুগ্রহ করে সেটিংস-এ আপনার API Key দিন।"
+            })
+            return
+
+        if not text:
+            self.send_json_response(400, {"error": "পলিসি চেক করার জন্য কোনো টেক্সট পাওয়া যায়নি।"})
+            return
+
+        prompt = (
+            "You are a professional YouTube Community Guidelines & Advertiser-Friendly Monetization Policy Specialist.\n\n"
+            "Carefully analyze the following script for potential YouTube policy violations or demonetization/yellow-dollar risks "
+            "(e.g., hate speech, severe profanity/vulgarity, violence, harassment, harmful misinformation, sexual content, sensitive/controversial tragedy triggers, advertiser-unfriendly terms).\n\n"
+            "Script to evaluate:\n"
+            f'"""{text}"""\n\n'
+            "Return your evaluation strictly in the following JSON schema:\n"
+            "{\n"
+            '  "safetyScore": 85,\n'
+            '  "status": "clean" | "warning" | "violation",\n'
+            '  "summary": "বাংলায় সামগ্রিক পর্যালোচনার বিবরণ (১-২ বাক্য)",\n'
+            '  "violations": [\n'
+            "    {\n"
+            '      "word": "শব্দ বা বাক্য অংশ",\n'
+            '      "category": "গালিগালাজ / অশ্লীল" | "ঘৃণামূলক বক্তব্য (Hate Speech)" | "হয়রানি (Harassment)" | "সহিংসতা (Violence)" | "মনিটাইজেশন ঝুঁকি (Demonetization)" | "ভ্রান্ত তথ্য (Misinformation)",\n'
+            '      "severity": "high" | "medium" | "low",\n'
+            '      "reason": "বাংলায় সহজভাবে কেন এটি ইউটিউবের পলিসির পরিপন্থী",\n'
+            '      "suggestedWord": "শালীন ও নিরাপদ বিকল্প বাংলা শব্দ"\n'
+            "    }\n"
+            "  ],\n"
+            '  "safeCorrectedText": "সম্পূর্ণ টেক্সটের একটি ১০০% ইউটিউব-সেইফ ও শালীন সংস্করণ যেখানে ঝুঁকিপূর্ণ অংশগুলো নিরাপদ বিকল্প দিয়ে ঠিক করা হয়েছে"\n'
+            "}"
+        )
+
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "responseMimeType": "application/json"
+            }
+        }
+
+        req_bytes = json.dumps(payload).encode("utf-8")
+        candidate_models = ["gemini-3.8-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+        last_error = ""
+        analysis_data = None
+        used_key_idx = 0
+        used_model = ""
+
+        # Loop through keys and candidate models
+        for k_idx, current_key in enumerate(keys_list):
+            for current_model in candidate_models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={current_key}"
+                api_req = urllib.request.Request(
+                    url,
+                    data=req_bytes,
+                    headers={"Content-Type": "application/json"},
+                    method="POST"
+                )
+                try:
+                    with urllib.request.urlopen(api_req, timeout=90) as response:
+                        resp_data = response.read()
+                        resp_json = json.loads(resp_data.decode("utf-8"))
+                        candidates = resp_json.get("candidates", [])
+                        if not candidates:
+                            continue
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        raw_json_str = "".join([p.get("text", "") for p in parts if "text" in p]).strip()
+                        if raw_json_str:
+                            import re
+                            clean_str = re.sub(r'^```(?:json)?\s*', '', raw_json_str)
+                            clean_str = re.sub(r'\s*```$', '', clean_str).strip()
+                            analysis_data = json.loads(clean_str)
+                            used_key_idx = k_idx
+                            used_model = current_model
+                            break
+                except urllib.error.HTTPError as e:
+                    err_body = e.read().decode("utf-8", errors="replace")
+                    try:
+                        err_json = json.loads(err_body)
+                        last_error = err_json.get("error", {}).get("message", err_body)
+                    except Exception:
+                        last_error = err_body
+                    
+                    is_quota = e.code == 429 or "quota" in last_error.lower() or "resource_exhausted" in last_error.lower() or "rate limit" in last_error.lower()
+                    if is_quota:
+                        # Quota exceeded on this key -> switch to next key
+                        break
+                    else:
+                        # Model not available or unsupported -> try next candidate model
+                        continue
+                except Exception as e:
+                    last_error = str(e)
+                    continue
+            if analysis_data:
+                break
+
+        if not analysis_data:
+            self.send_json_response(400, {
+                "error": f"ইউটিউব পলিসি স্ক্যান করা যায়নি: {last_error or 'Gemini কোনো ফলাফল দেয়নি।'}"
+            })
+            return
+
+        self.send_json_response(200, {
+            "success": True,
+            "analysis": analysis_data,
+            "usedKeyIndex": used_key_idx + 1,
+            "totalKeys": len(keys_list),
+            "usedModel": used_model
+        })
 
     def handle_generate_audio(self):
         content_length = int(self.headers.get("Content-Length", 0))
@@ -246,14 +506,14 @@ def run_server():
                 print(f"Error starting server: {e}")
                 sys.exit(1)
 
-    print(f"==================================================")
-    print(f" Gemini AI Audio Studio সার্ভার চালু হয়েছে!")
-    print(f" ব্রাউজারে ওপেন করুন: http://localhost:{port}")
-    print(f"==================================================")
+    print(f"==================================================", flush=True)
+    print(f" Gemini AI Audio Studio সার্ভার চালু হয়েছে!", flush=True)
+    print(f" ব্রাউজারে ওপেন করুন: http://localhost:{port}", flush=True)
+    print(f"==================================================", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\nসার্ভার বন্ধ করা হচ্ছে...")
+        print("\nসার্ভার বন্ধ করা হচ্ছে...", flush=True)
 
 if __name__ == "__main__":
     run_server()

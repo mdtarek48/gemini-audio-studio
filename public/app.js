@@ -63,6 +63,9 @@ function init() {
   // Event Listeners
   setupEventListeners();
 
+  // Audio-to-Text & YouTube Policy Scanner
+  setupAudioScanner();
+
   if (elements.mainTextInput && elements.mainTextInput.value.trim()) {
     updateTextStats();
     splitText();
@@ -851,6 +854,562 @@ function getDemoText() {
 প্রকৃতির এমন স্নিগ্ধ রূপ মানুষকে সব ক্লান্তি ভুলিয়ে নতুন করে বাঁচতে শেখায়।
 ভালোবাসা ও সম্প্রীতিই হলো মানুষের জীবনের সবচেয়ে বড় শক্তি ও সম্পদ।`;
 }
+
+// ==========================================
+// Audio-to-Text & YouTube Policy Scanner Module
+// ==========================================
+
+let scannerAudioFile = null;
+let scannerAudioBase64 = null;
+let scannerTranscribedText = '';
+let scannerPolicyAnalysis = null;
+
+function setupAudioScanner() {
+  const toggleBtn = document.getElementById('toggleAudioScannerBtn');
+  const toggleText = document.getElementById('toggleScannerText');
+  const chevronIcon = document.getElementById('scannerChevronIcon');
+  const content = document.getElementById('audioScannerContent');
+
+  const dropzone = document.getElementById('audioDropzone');
+  const fileInput = document.getElementById('audioFileInput');
+  const selectedAudioCard = document.getElementById('selectedAudioCard');
+  const audioFileName = document.getElementById('audioFileName');
+  const audioFileSize = document.getElementById('audioFileSize');
+  const audioPreviewPlayer = document.getElementById('audioPreviewPlayer');
+  const removeFileBtn = document.getElementById('removeAudioFileBtn');
+
+  const transcribeAndCheckBtn = document.getElementById('transcribeAndCheckBtn');
+  const transcribeOnlyBtn = document.getElementById('transcribeOnlyBtn');
+  const loadingState = document.getElementById('scannerLoadingState');
+  const loadingText = document.getElementById('scannerLoadingText');
+
+  const policyResultsSection = document.getElementById('policyResultsSection');
+  const applyAutoFixBtn = document.getElementById('applyAutoFixBtn');
+  const sendToMainBoxBtn = document.getElementById('sendToMainBoxBtn');
+  const copyTranscribedBtn = document.getElementById('copyTranscribedBtn');
+  const copySafeBtn = document.getElementById('copySafeBtn');
+  const safeTextEditor = document.getElementById('safeTextEditor');
+  const checkMainTextPolicyBtn = document.getElementById('checkMainTextPolicyBtn');
+
+  if (!toggleBtn) return;
+
+  // Toggle Collapse
+  toggleBtn.addEventListener('click', () => {
+    const isHidden = content.classList.toggle('hidden');
+    toggleText.textContent = isHidden ? 'প্যানেলটি দেখান' : 'প্যানেলটি লুকান';
+    if (chevronIcon) {
+      chevronIcon.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+  });
+
+  // Prevent file input click from bubbling
+  if (fileInput) {
+    fileInput.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        handleSelectedAudioFile(e.target.files[0]);
+      }
+    });
+  }
+
+  // Drag & drop handlers on dropzone
+  if (dropzone) {
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('border-teal-400', 'bg-teal-500/10');
+    });
+    ['dragleave', 'dragend'].forEach(type => {
+      dropzone.addEventListener(type, () => {
+        dropzone.classList.remove('border-teal-400', 'bg-teal-500/10');
+      });
+    });
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('border-teal-400', 'bg-teal-500/10');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleSelectedAudioFile(e.dataTransfer.files[0]);
+      }
+    });
+  }
+
+  const changeAudioFileBtn = document.getElementById('changeAudioFileBtn');
+  if (changeAudioFileBtn && fileInput) {
+    changeAudioFileBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
+  }
+
+  if (removeFileBtn) {
+    removeFileBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      resetAudioFileSelection();
+    });
+  }
+
+  function resetAudioFileSelection() {
+    scannerAudioFile = null;
+    scannerAudioBase64 = null;
+    if (fileInput) fileInput.value = '';
+    if (selectedAudioCard) selectedAudioCard.style.display = 'none';
+    if (dropzone) dropzone.style.display = 'block';
+    if (transcribeAndCheckBtn) {
+      transcribeAndCheckBtn.disabled = true;
+      transcribeAndCheckBtn.classList.add('opacity-40', 'cursor-not-allowed');
+    }
+    if (transcribeOnlyBtn) {
+      transcribeOnlyBtn.disabled = true;
+      transcribeOnlyBtn.classList.add('opacity-40', 'cursor-not-allowed');
+    }
+    if (audioPreviewPlayer) {
+      audioPreviewPlayer.pause();
+      if (audioPreviewPlayer.src) {
+        URL.revokeObjectURL(audioPreviewPlayer.src);
+        audioPreviewPlayer.src = '';
+      }
+    }
+  }
+
+  function readAudioFileAsBase64(file) {
+    if (scannerAudioBase64 && scannerAudioFile === file) {
+      return Promise.resolve(scannerAudioBase64);
+    }
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result;
+        const base64Index = typeof result === 'string' ? result.indexOf('base64,') : -1;
+        const b64 = base64Index !== -1 ? result.substring(base64Index + 7) : result;
+        scannerAudioBase64 = b64;
+        resolve(b64);
+      };
+      reader.onerror = () => {
+        reject(new Error('অডিও ফাইল রিড করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।'));
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function handleSelectedAudioFile(file) {
+    if (!file) return;
+
+    // Check extension and mime type (relaxed for all valid audio formats)
+    const validExts = /\.(mp3|wav|m4a|ogg|webm|aac|flac|opus|wma|mp4|m4b)$/i;
+    const isAudioType = file.type ? (file.type.startsWith('audio/') || file.type.includes('mp4') || file.type.includes('ogg')) : false;
+
+    if (!isAudioType && !validExts.test(file.name)) {
+      showToast('অনুগ্রহ করে একটি সঠিক অডিও ফাইল (MP3, WAV, M4A, OGG, WEBM) সিলেক্ট করুন।', 'error');
+      return;
+    }
+
+    const maxSizeBytes = 25 * 1024 * 1024; // 25 MB
+    if (file.size > maxSizeBytes) {
+      showToast('অডিও ফাইলটি অনেক বড়! সর্বোচ্চ ২৫ মেগাবাইট পর্যন্ত ফাইল আপলোড করতে পারবেন।', 'error');
+      return;
+    }
+
+    scannerAudioFile = file;
+    scannerAudioBase64 = null;
+
+    if (audioFileName) audioFileName.textContent = file.name;
+    if (audioFileSize) audioFileSize.textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+    
+    if (audioPreviewPlayer) {
+      try {
+        if (audioPreviewPlayer.src) URL.revokeObjectURL(audioPreviewPlayer.src);
+      } catch (e) {}
+      audioPreviewPlayer.src = URL.createObjectURL(file);
+      audioPreviewPlayer.load();
+    }
+
+    if (dropzone) dropzone.style.display = 'none';
+    if (selectedAudioCard) selectedAudioCard.style.display = 'flex';
+
+    if (transcribeAndCheckBtn) {
+      transcribeAndCheckBtn.disabled = false;
+      transcribeAndCheckBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+    }
+    if (transcribeOnlyBtn) {
+      transcribeOnlyBtn.disabled = false;
+      transcribeOnlyBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+
+    // Pre-read base64 asynchronously
+    readAudioFileAsBase64(file).catch(err => {
+      console.warn('Pre-reading audio file warning:', err);
+    });
+
+    showToast(`"${file.name}" অডিও ফাইল প্রস্তুত!`, 'success');
+  }
+
+  // Transcribe & Check Button
+  if (transcribeAndCheckBtn) {
+    transcribeAndCheckBtn.addEventListener('click', () => {
+      runAudioPipeline(true);
+    });
+  }
+
+  // Transcribe Only Button
+  if (transcribeOnlyBtn) {
+    transcribeOnlyBtn.addEventListener('click', () => {
+      runAudioPipeline(false);
+    });
+  }
+
+  // Check Main Text Policy Button
+  if (checkMainTextPolicyBtn) {
+    checkMainTextPolicyBtn.addEventListener('click', () => {
+      const text = elements.mainTextInput.value.trim();
+      if (!text) {
+        showToast('প্রথমে মূল টেক্সট বক্সে কিছু লিখুন বা পেস্ট করুন।', 'error');
+        elements.mainTextInput.focus();
+        return;
+      }
+      content.classList.remove('hidden');
+      toggleText.textContent = 'প্যানেলটি লুকান';
+      if (chevronIcon) chevronIcon.style.transform = 'rotate(0deg)';
+      executePolicyCheck(text);
+    });
+  }
+
+  async function runAudioPipeline(checkPolicyAfter) {
+    // Auto-capture API key if entered in input box but not saved
+    if (!state.apiKey && elements.apiKeyInput && elements.apiKeyInput.value.trim()) {
+      state.apiKey = elements.apiKeyInput.value.trim();
+      localStorage.setItem('gemini_api_key', state.apiKey);
+      updateApiKeyStatus(true);
+    }
+
+    if (!state.apiKey) {
+      elements.settingsPanel.classList.remove('hidden');
+      elements.apiKeyInput.focus();
+      showToast('প্রথমে আপনার Google AI Studio API Key প্রদান করুন।', 'error');
+      return;
+    }
+
+    if (!scannerAudioFile) {
+      showToast('অনুগ্রহ করে প্রথমে একটি অডিও ফাইল সিলেক্ট করুন।', 'error');
+      return;
+    }
+
+    loadingState.classList.remove('hidden');
+    policyResultsSection.classList.add('hidden');
+    loadingText.textContent = 'অডিও ফাইল লোড হচ্ছে...';
+    transcribeAndCheckBtn.disabled = true;
+    transcribeOnlyBtn.disabled = true;
+
+    try {
+      const audioBase64 = await readAudioFileAsBase64(scannerAudioFile);
+      if (!audioBase64) {
+        throw new Error('অডিও ফাইল রিড করা যায়নি।');
+      }
+
+      loadingText.textContent = 'অডিও শুনছে এবং টেক্সটে রূপান্তর করছে (Gemini STT)...';
+
+      const isFirebase = window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com');
+      const transcribeUrl = isFirebase 
+        ? 'https://gemini-audio-studio-seven.vercel.app/api/transcribe-audio' 
+        : (window.location.protocol === 'file:' || window.location.port === '5500' || window.location.port === '5501')
+          ? 'http://localhost:5000/api/transcribe-audio'
+          : '/api/transcribe-audio';
+
+      // Detect MIME type safely
+      let mimeType = scannerAudioFile.type;
+      if (!mimeType || mimeType === 'application/octet-stream') {
+        const ext = (scannerAudioFile.name.split('.').pop() || 'mp3').toLowerCase();
+        if (ext === 'mp3') mimeType = 'audio/mp3';
+        else if (ext === 'wav') mimeType = 'audio/wav';
+        else if (ext === 'm4a') mimeType = 'audio/mp4';
+        else if (ext === 'ogg') mimeType = 'audio/ogg';
+        else if (ext === 'webm') mimeType = 'audio/webm';
+        else if (ext === 'aac') mimeType = 'audio/aac';
+        else mimeType = 'audio/mp3';
+      }
+
+      const resp = await fetch(transcribeUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audioBase64: audioBase64,
+          mimeType: mimeType,
+          apiKey: state.apiKey,
+          apiKeys: parseKeys(state.apiKey)
+        })
+      });
+
+      const data = await resp.json();
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'অডিও ট্রান্সক্রিপশন ব্যর্থ হয়েছে।');
+      }
+
+      scannerTranscribedText = data.transcription || '';
+      showToast('অডিও সফলভাবে টেক্সটে রূপান্তর হয়েছে!', 'success');
+
+      if (checkPolicyAfter) {
+        loadingText.textContent = 'ইউটিউব কমিউনিটি ও মনিটাইজেশন পলিসি স্ক্যান হচ্ছে...';
+        await executePolicyCheck(scannerTranscribedText);
+      } else {
+        renderTranscriptionOnly(scannerTranscribedText);
+      }
+
+    } catch (err) {
+      console.error('Audio Pipeline Error:', err);
+      showToast('ত্রুটি: ' + err.message, 'error');
+    } finally {
+      loadingState.classList.add('hidden');
+      transcribeAndCheckBtn.disabled = false;
+      transcribeOnlyBtn.disabled = false;
+    }
+  }
+
+  async function executePolicyCheck(textToAnalyze) {
+    // Auto-capture API key if entered in input box but not saved
+    if (!state.apiKey && elements.apiKeyInput && elements.apiKeyInput.value.trim()) {
+      state.apiKey = elements.apiKeyInput.value.trim();
+      localStorage.setItem('gemini_api_key', state.apiKey);
+      updateApiKeyStatus(true);
+    }
+
+    if (!state.apiKey) {
+      elements.settingsPanel.classList.remove('hidden');
+      elements.apiKeyInput.focus();
+      showToast('ইউটিউব পলিসি স্ক্যান করতে Google AI Studio API Key দিন।', 'error');
+      return;
+    }
+
+    loadingState.classList.remove('hidden');
+    policyResultsSection.classList.add('hidden');
+    loadingText.textContent = 'ইউটিউব কমিউনিটি ও মনিটাইজেশন পলিসি স্ক্যান হচ্ছে...';
+
+    try {
+      const isFirebase = window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com');
+      const policyUrl = isFirebase 
+        ? 'https://gemini-audio-studio-seven.vercel.app/api/check-policy' 
+        : (window.location.protocol === 'file:' || window.location.port === '5500' || window.location.port === '5501')
+          ? 'http://localhost:5000/api/check-policy'
+          : '/api/check-policy';
+
+      const resp = await fetch(policyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: textToAnalyze,
+          apiKey: state.apiKey,
+          apiKeys: parseKeys(state.apiKey)
+        })
+      });
+
+      const data = await resp.json();
+      if (!resp.ok || !data.success || !data.analysis) {
+        throw new Error(data.error || 'ইউটিউব পলিসি স্ক্যান সম্পন্ন করা যায়নি।');
+      }
+
+      scannerPolicyAnalysis = data.analysis;
+      renderPolicyResults(data.analysis, textToAnalyze);
+      showToast('ইউটিউব পলিসি স্ক্যান সম্পন্ন হয়েছে!', 'success');
+
+    } catch (err) {
+      console.error('Policy Check Error:', err);
+      showToast('পলিসি স্ক্যানে সমস্যা হয়েছে: ' + err.message, 'error');
+    } finally {
+      loadingState.classList.add('hidden');
+    }
+  }
+
+  function renderTranscriptionOnly(text) {
+    policyResultsSection.classList.remove('hidden');
+    const safetyScoreCircle = document.getElementById('safetyScoreCircle');
+    const safetyScoreTitle = document.getElementById('safetyScoreTitle');
+    const safetyStatusBadge = document.getElementById('safetyStatusBadge');
+    const safetyScoreSummary = document.getElementById('safetyScoreSummary');
+    const violationsCard = document.getElementById('violationsCard');
+    const highlightedTextView = document.getElementById('highlightedTextView');
+
+    if (safetyScoreCircle) {
+      safetyScoreCircle.textContent = '100%';
+      safetyScoreCircle.className = 'w-13 h-13 rounded-xl flex items-center justify-center font-black text-lg bg-teal-500/10 text-teal-400 border-teal-500/30';
+    }
+    if (safetyScoreTitle) {
+      safetyScoreTitle.innerHTML = 'অডিও ট্রান্সক্রিপশন সম্পন্ন <span id="safetyStatusBadge" class="text-[10px] bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded-full font-semibold">রেডি</span>';
+    }
+    if (safetyScoreSummary) {
+      safetyScoreSummary.textContent = 'আপনার অডিও থেকে সম্পূর্ণ টেক্সট বের করা হয়েছে। প্রয়োজন হলে ডানদিকের "মূল বক্সে নিন ও অডিও বানান" বাটনে চাপ দিয়ে সরাসরি ভয়েস তৈরি করতে পারেন।';
+    }
+    if (violationsCard) violationsCard.classList.add('hidden');
+
+    if (highlightedTextView) highlightedTextView.textContent = text;
+    if (safeTextEditor) safeTextEditor.value = text;
+    policyResultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function renderPolicyResults(analysis, originalText) {
+    policyResultsSection.classList.remove('hidden');
+    const safetyScoreCircle = document.getElementById('safetyScoreCircle');
+    const safetyScoreTitle = document.getElementById('safetyScoreTitle');
+    const safetyStatusBadge = document.getElementById('safetyStatusBadge');
+    const safetyScoreSummary = document.getElementById('safetyScoreSummary');
+    const violationsCard = document.getElementById('violationsCard');
+    const violationsCount = document.getElementById('violationsCount');
+    const violationsListContainer = document.getElementById('violationsListContainer');
+    const highlightedTextView = document.getElementById('highlightedTextView');
+
+    const score = typeof analysis.safetyScore === 'number' ? analysis.safetyScore : 100;
+    if (safetyScoreCircle) safetyScoreCircle.textContent = score + '%';
+
+    if (safetyScoreCircle && safetyStatusBadge) {
+      if (score >= 90) {
+        safetyScoreCircle.className = 'w-13 h-13 rounded-xl flex items-center justify-center font-black text-lg bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+        safetyStatusBadge.className = 'text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-semibold';
+        safetyStatusBadge.textContent = 'নিরাপদ (Clean)';
+      } else if (score >= 70) {
+        safetyScoreCircle.className = 'w-13 h-13 rounded-xl flex items-center justify-center font-black text-lg bg-amber-500/10 text-amber-400 border border-amber-500/30';
+        safetyStatusBadge.className = 'text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-semibold';
+        safetyStatusBadge.textContent = 'সতর্কতা (Warning)';
+      } else {
+        safetyScoreCircle.className = 'w-13 h-13 rounded-xl flex items-center justify-center font-black text-lg bg-rose-500/10 text-rose-400 border border-rose-500/30';
+        safetyStatusBadge.className = 'text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded-full font-semibold';
+        safetyStatusBadge.textContent = 'পলিসি লঙ্ঘন (Violation)';
+      }
+    }
+
+    if (safetyScoreSummary) safetyScoreSummary.textContent = analysis.summary || 'পলিসি পর্যালোচনা সম্পন্ন হয়েছে।';
+    if (safeTextEditor) safeTextEditor.value = analysis.safeCorrectedText || originalText;
+
+    const violations = Array.isArray(analysis.violations) ? analysis.violations : [];
+    if (violationsCount) violationsCount.textContent = violations.length;
+
+    // Highlight offending words in original text
+    let highlightedHtml = escapeHtml(originalText);
+    violations.forEach(v => {
+      const word = (v.word || '').trim();
+      if (!word) return;
+      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(${escaped})`, 'gi');
+      highlightedHtml = highlightedHtml.replace(regex, `<mark class="bg-amber-500/25 text-amber-300 font-medium px-1 py-0.5 rounded border border-amber-500/40 cursor-help" title="${escapeHtml(v.reason || '')}">$1</mark>`);
+    });
+    if (highlightedTextView) highlightedTextView.innerHTML = highlightedHtml;
+
+    // Render violation cards
+    if (violationsCard && violationsListContainer) {
+      if (violations.length === 0) {
+        violationsCard.classList.remove('hidden');
+        violationsListContainer.innerHTML = `
+          <div class="md:col-span-2 bg-emerald-950/20 border border-emerald-800/40 rounded-xl p-3 text-center flex items-center justify-center gap-2 text-xs text-emerald-300">
+            <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+            <span>দারুণ! আপনার স্ক্রিপ্টে কোনো ইউটিউব পলিসি-বিরোধী বা ডিমনিটাইজেশনের ঝুঁকিপূর্ণ শব্দ পাওয়া যায়নি।</span>
+          </div>
+        `;
+      } else {
+        violationsCard.classList.remove('hidden');
+        violationsListContainer.innerHTML = violations.map(v => {
+          let badgeColor = 'bg-amber-500/10 text-amber-300 border-amber-500/30';
+          if (v.severity === 'high') badgeColor = 'bg-rose-500/10 text-rose-300 border-rose-500/30';
+
+          const safeOld = escapeHtml(v.word || '').replace(/'/g, "\\'");
+          const safeNew = escapeHtml(v.suggestedWord || '').replace(/'/g, "\\'");
+
+          return `
+            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 space-y-2 hover:border-slate-700 transition">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-bold text-rose-400 font-mono bg-rose-950/40 px-2 py-0.5 rounded border border-rose-900/50">
+                  "${escapeHtml(v.word || '')}"
+                </span>
+                <span class="text-[10px] ${badgeColor} border px-2 py-0.5 rounded-full font-medium">
+                  ${escapeHtml(v.category || 'পলিসি ঝুঁকি')}
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400 leading-snug">
+                <strong class="text-slate-300">কারণ:</strong> ${escapeHtml(v.reason || 'ইউটিউব মনিটাইজেশন বা কমিউনিটি গাইডলাইনে ঝুঁকি রয়েছে।')}
+              </p>
+              ${v.suggestedWord ? `
+                <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-800 text-[11px]">
+                  <span class="text-slate-400">নিরাপদ বিকল্প:</span>
+                  <button type="button" onclick="replaceWordInSafeEditor('${safeOld}', '${safeNew}')" class="text-emerald-400 hover:text-emerald-300 font-medium underline flex items-center gap-1">
+                    <span>"${escapeHtml(v.suggestedWord)}" ব্যবহার করুন</span>
+                    <i data-lucide="check" class="w-3 h-3"></i>
+                  </button>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    policyResultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  // Auto-Fix Button
+  if (applyAutoFixBtn) {
+    applyAutoFixBtn.addEventListener('click', () => {
+      if (scannerPolicyAnalysis && scannerPolicyAnalysis.safeCorrectedText) {
+        safeTextEditor.value = scannerPolicyAnalysis.safeCorrectedText;
+        const highlightedTextView = document.getElementById('highlightedTextView');
+        if (highlightedTextView) {
+          highlightedTextView.innerHTML = `<span class="text-emerald-400">${escapeHtml(scannerPolicyAnalysis.safeCorrectedText)}</span>`;
+        }
+        showToast('ইউটিউব-সেইফ ১০০% নিরাপদ সংস্করণ সফলভাবে প্রয়োগ করা হয়েছে!', 'success');
+      } else {
+        showToast('সবকিছু ইতিমধ্যেই নিরাপদ!', 'info');
+      }
+    });
+  }
+
+  // Send to Main Voice Studio Box
+  if (sendToMainBoxBtn) {
+    sendToMainBoxBtn.addEventListener('click', () => {
+      const textToSend = (safeTextEditor ? safeTextEditor.value.trim() : '') || scannerTranscribedText.trim();
+      if (!textToSend) {
+        showToast('পাঠানোর মতো কোনো টেক্সট নেই!', 'error');
+        return;
+      }
+      elements.mainTextInput.value = textToSend;
+      updateTextStats();
+      splitText();
+      elements.mainTextInput.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      showToast('টেক্সট সফলভাবে মূল বক্সে যোগ করা হয়েছে এবং প্রতি ১০ লাইনে ভাগ করা হয়েছে!', 'success');
+    });
+  }
+
+  // Copy Buttons
+  if (copyTranscribedBtn) {
+    copyTranscribedBtn.addEventListener('click', () => {
+      const highlightedTextView = document.getElementById('highlightedTextView');
+      const text = scannerTranscribedText || (highlightedTextView ? highlightedTextView.innerText : '');
+      if (text) {
+        navigator.clipboard.writeText(text);
+        showToast('মূল ট্রান্সক্রিপ্ট ক্লিপবোর্ডে কপি হয়েছে!', 'info');
+      }
+    });
+  }
+
+  if (copySafeBtn) {
+    copySafeBtn.addEventListener('click', () => {
+      const text = safeTextEditor ? safeTextEditor.value.trim() : '';
+      if (text) {
+        navigator.clipboard.writeText(text);
+        showToast('ইউটিউব-সেইফ টেক্সট ক্লিপবোর্ডে কপি হয়েছে!', 'success');
+      }
+    });
+  }
+}
+
+// Global helper for single-word replacement
+window.replaceWordInSafeEditor = function(oldWord, newWord) {
+  const safeTextEditor = document.getElementById('safeTextEditor');
+  if (safeTextEditor && oldWord && newWord) {
+    const regex = new RegExp(oldWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    safeTextEditor.value = safeTextEditor.value.replace(regex, newWord);
+    showToast(`"${oldWord}" এর জায়গায় "${newWord}" প্রতিস্থাপন করা হয়েছে!`, 'success');
+  }
+};
 
 // Start app on DOM loaded
 document.addEventListener('DOMContentLoaded', init);
