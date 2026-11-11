@@ -62,9 +62,9 @@
   <!-- Settings Panel (Collapsible) -->
   <section id="settingsPanel" class="bg-slate-900 border-b border-slate-800 transition-all duration-300">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- API Key Input (Supports Multiple Accounts) -->
-        <div class="space-y-1.5 md:col-span-1">
+        <div class="space-y-1.5 sm:col-span-2 lg:col-span-1">
           <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
             <span class="flex items-center gap-1.5">
               <span>Google AI Studio API Keys</span>
@@ -78,7 +78,7 @@
             <textarea id="apiKeyInput" rows="2" placeholder="প্রতি লাইনে আলাদা একাউন্টের API Key দিন...
 AQ.Ab8RN6Lm... (১ম একাউন্ট)
 AIzaSy... (২য় একাউন্ট)" 
-              class="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-xs text-slate-100 rounded-lg p-2.5 outline-none transition font-mono resize-y leading-relaxed"></textarea>
+              class="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-xs text-slate-100 rounded-lg p-2 outline-none transition font-mono resize-y leading-relaxed"></textarea>
             <div class="flex items-center justify-between">
               <span id="keysCountBadge" class="text-[11px] text-teal-400 font-medium">১টি Key সক্রিয়</span>
               <button id="saveKeyBtn" type="button" class="text-[11px] bg-teal-600 hover:bg-teal-500 text-white px-3 py-1 rounded transition font-medium flex items-center gap-1 shadow-sm">
@@ -92,7 +92,7 @@ AIzaSy... (২য় একাউন্ট)"
         <!-- Voice Selector -->
         <div class="space-y-1.5">
           <label class="text-xs font-semibold text-slate-300">Gemini ভয়েস সিলেক্ট করুন</label>
-          <select id="voiceSelect" class="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 text-xs text-slate-100 rounded-lg px-3 py-2.5 outline-none transition">
+          <select id="voiceSelect" class="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
             <option value="Kore" selected>Kore (শান্ত ও মিষ্টি নারী কণ্ঠ)</option>
             <option value="Puck">Puck (স্পষ্ট ও প্রাণবন্ত পুরুষ কণ্ঠ)</option>
             <option value="Aoede">Aoede (উষ্ণ ও স্পষ্ট নারী কণ্ঠ)</option>
@@ -102,7 +102,43 @@ AIzaSy... (২য় একাউন্ট)"
             <option value="Mako">Mako (Energetic and colorful · Low pitch)</option>
             <option value="Algenib">Algenib (Gravelly · Lower pitch)</option>
           </select>
-          <p class="text-[11px] text-slate-400">পছন্দমতো যেকোনো কণ্ঠ নির্বাচন করুন।</p>
+          <p class="text-[10px] text-slate-400">পছন্দমতো যেকোনো কণ্ঠ নির্বাচন করুন।</p>
+        </div>
+
+        <!-- Voice Tone Selector (Human Persona / AI Studio Style) -->
+        <div class="space-y-1.5">
+          <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+            <span class="flex items-center gap-1">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
+              <span>ভয়েস টোন ও বাচনভঙ্গি (Persona)</span>
+            </span>
+            <span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-medium">AI Studio</span>
+          </label>
+          <select id="toneSelect" class="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
+            <option value="Bright, sunny, welcoming morning greeting with a subtle vocal smile and crisp pacing" selected>
+              Bright, sunny, welcoming (হাসিমুখ ও প্রাণবন্ত সুর - ডিফল্ট)
+            </option>
+            <option value="Warm, natural, conversational storytelling with relaxed pacing and authentic emotion">
+              Conversational Storytelling (স্বাভাবিক মানুষের মত গল্প বলা)
+            </option>
+            <option value="Expressive, human-like narration with natural pauses, emotional depth, and clear articulation">
+              Expressive Narration (গভীর অনুভূতি ও স্পষ্ট উচ্চারণ)
+            </option>
+            <option value="Deep, serious, authoritative documentary narration with steady pacing and grave weight">
+              Authoritative Documentary (গুরুগম্ভীর তথ্যচিত্র ও ঐতিহাসিক)
+            </option>
+            <option value="Energetic, confident, engaging presentation with sharp delivery and positive enthusiasm">
+              Energetic Presentation (উদ্যমী উপস্থাপনা ও পডকাস্ট)
+            </option>
+            <option value="Calm, soothing, intimate late-night whisper with gentle pauses and warm resonance">
+              Calm & Soothing (শান্ত ও মিষ্টি ফিসফিস কণ্ঠ)
+            </option>
+            <option value="custom">কাস্টম টোন প্রম্পট (নিজের মতো লিখুন)...</option>
+          </select>
+          <input type="text" id="customToneInput" placeholder="টোন প্রম্পট লিখুন (যেমন: Bright, sunny...)"
+            value="Bright, sunny, welcoming morning greeting with a subtle vocal smile and crisp pacing"
+            class="w-full bg-slate-950/90 border border-slate-700 focus:border-amber-500 text-[11px] text-amber-200 rounded-lg p-2 outline-none transition font-mono truncate" title="সক্রিয় ভয়েস টোন প্রম্পট">
+          <p class="text-[10px] text-slate-400">💡 মানুষের মত হাসিমুখ, সঠিক আবেগ ও স্বরের ওঠানামা বজায় রাখবে।</p>
         </div>
 
         <!-- Model Selector -->
@@ -110,12 +146,12 @@ AIzaSy... (২য় একাউন্ট)"
           <label class="text-xs font-semibold text-slate-300">Gemini মডেল</label>
           <div class="flex gap-2">
             <input type="text" id="modelInput" value="gemini-3.8-flash-tts" 
-              class="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 text-xs text-slate-100 rounded-lg px-3 py-2.5 outline-none transition font-mono">
+              class="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition font-mono">
             <button id="resetModelBtn" title="Reset to default" class="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg text-xs">
               Reset
             </button>
           </div>
-          <p class="text-[11px] text-slate-400">ডিফল্ট: <code class="text-teal-400 font-mono">gemini-3.8-flash-tts</code> (অফিসিয়াল অডিও স্পিচ মডেল)।</p>
+          <p class="text-[10px] text-slate-400">ডিফল্ট: <code class="text-teal-400 font-mono">gemini-3.8-flash-tts</code> (অফিসিয়াল স্পিচ মডেল)।</p>
         </div>
       </div>
     </div>
@@ -281,6 +317,31 @@ AIzaSy... (২য় একাউন্ট)"
           </button>
           <button id="clearTextBtn" class="text-xs text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1">
             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> ক্লিয়ার করুন
+          </button>
+        </div>
+      </div>
+
+      <!-- Expression Tags Toolbar (Google AI Studio Expression Control) -->
+      <div class="flex flex-wrap items-center gap-2 text-xs bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
+        <span class="text-amber-400 font-medium text-xs flex items-center gap-1.5 shrink-0">
+          <i data-lucide="smile" class="w-4 h-4 text-amber-400"></i>
+          <span>ভোকাল এক্সপ্রেশন:</span>
+        </span>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <button type="button" onclick="insertExpressionTag('<laugh>')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1" title="ক্লিক করে টেক্সটে হাসির এক্সপ্রেশন যোগ করুন">
+            <span>&lt;laugh&gt;</span> <span class="text-[10px] text-slate-400 font-sans">হাসি</span>
+          </button>
+          <button type="button" onclick="insertExpressionTag('<gasp>')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1" title="ক্লিক করে বিস্ময় বা দম নেওয়ার ভাব যোগ করুন">
+            <span>&lt;gasp&gt;</span> <span class="text-[10px] text-slate-400 font-sans">বিস্ময়</span>
+          </button>
+          <button type="button" onclick="insertExpressionTag('<sigh>')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1" title="ক্লিক করে দীর্ঘশ্বাস যোগ করুন">
+            <span>&lt;sigh&gt;</span> <span class="text-[10px] text-slate-400 font-sans">দীর্ঘশ্বাস</span>
+          </button>
+          <button type="button" onclick="insertExpressionTag('<short pause>')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1" title="ক্লিক করে স্বাভাবিক মানুষের মত হালকা বিরতি দিন">
+            <span>&lt;short pause&gt;</span> <span class="text-[10px] text-slate-400 font-sans">বিরতি</span>
+          </button>
+          <button type="button" onclick="insertExpressionTag('<whisper>')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1" title="ক্লিক করে ফিসফিস করে কথা বলার ভাব যোগ করুন">
+            <span>&lt;whisper&gt;</span> <span class="text-[10px] text-slate-400 font-sans">ফিসফিস</span>
           </button>
         </div>
       </div>

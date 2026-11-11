@@ -49,7 +49,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { text, apiKey, apiKeys, voice = 'Kore', model = 'gemini-3.8-flash-tts' } = req.body || {};
+    const { text, apiKey, apiKeys, voice = 'Kore', model = 'gemini-3.8-flash-tts', tone } = req.body || {};
+    const activeTone = (tone && tone.trim()) || 'Bright, sunny, welcoming morning greeting with a subtle vocal smile and crisp pacing';
 
     // Support multiple API keys from either array or newline/comma separated string
     let keysList = [];
@@ -73,18 +74,20 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'কোনো টেক্সট পাওয়া যায়নি।' });
     }
 
-    // Pure text payload without systemInstruction and without English wrapper.
-    // Note: Gemini audio/speech models (gemini-3.8-flash-tts) do not support systemInstruction
-    // and will reject it with HTTP 400 "Developer instruction is not enabled for this model".
-    // Pure text input ensures no English preamble is spoken by conversational voices.
+    // Text part with optional human speechMetadata tone
+    const textPart = {
+      text: text.trim()
+    };
+    if (activeTone) {
+      textPart.speechMetadata = {
+        style: activeTone
+      };
+    }
+
     const payload = {
       contents: [
         {
-          parts: [
-            {
-              text: text.trim()
-            }
-          ]
+          parts: [textPart]
         }
       ],
       generationConfig: {
@@ -143,6 +146,33 @@ export default async function handler(req, res) {
               console.log(`Key #${k + 1} quota exceeded on ${currentModel}. Trying next key/model...`);
               continue; // try next model or next key
             } else {
+              // If speechMetadata rejected with 400, retry once cleanly without it
+              if (textPart.speechMetadata && (apiResponse.status === 400 || errorMsg.toLowerCase().includes('speechmetadata'))) {
+                try {
+                  const fbResponse = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      contents: [{ parts: [{ text: text.trim() }] }],
+                      generationConfig: payload.generationConfig
+                    })
+                  });
+                  const fbJson = await fbResponse.json();
+                  if (fbResponse.ok) {
+                    const fbParts = fbJson?.candidates?.[0]?.content?.parts || [];
+                    const fbAudio = fbParts.find(p => p.inlineData)?.inlineData;
+                    if (fbAudio) {
+                      successfulAudio = fbAudio;
+                      usedKeyIndex = k;
+                      usedModel = currentModel;
+                      break outerLoop;
+                    }
+                  }
+                } catch (fbErr) {
+                  console.warn('Fallback without speechMetadata error:', fbErr);
+                }
+              }
+
               // Non-quota error on this key (e.g. invalid key format or bad request)
               console.error(`Key #${k + 1} error:`, errorMsg);
               continue outerLoop;

@@ -2,6 +2,7 @@
 const state = {
   apiKey: localStorage.getItem('gemini_api_key') || '',
   voice: localStorage.getItem('gemini_voice') || 'Kore',
+  voiceTone: localStorage.getItem('gemini_voice_tone') || 'Bright, sunny, welcoming morning greeting with a subtle vocal smile and crisp pacing',
   model: localStorage.getItem('gemini_model') || 'gemini-3.8-flash-tts',
   autoPlay: localStorage.getItem('gemini_autoplay') !== 'false',
   chunks: [],
@@ -18,6 +19,8 @@ const elements = {
   toggleSettingsBtn: document.getElementById('toggleSettingsBtn'),
   settingsPanel: document.getElementById('settingsPanel'),
   voiceSelect: document.getElementById('voiceSelect'),
+  toneSelect: document.getElementById('toneSelect'),
+  customToneInput: document.getElementById('customToneInput'),
   modelInput: document.getElementById('modelInput'),
   resetModelBtn: document.getElementById('resetModelBtn'),
   
@@ -59,6 +62,18 @@ function init() {
 
   elements.voiceSelect.value = state.voice;
   elements.modelInput.value = state.model;
+
+  if (elements.toneSelect) {
+    const knownValues = Array.from(elements.toneSelect.options).map(o => o.value);
+    if (knownValues.includes(state.voiceTone)) {
+      elements.toneSelect.value = state.voiceTone;
+    } else {
+      elements.toneSelect.value = 'custom';
+    }
+  }
+  if (elements.customToneInput) {
+    elements.customToneInput.value = state.voiceTone;
+  }
 
   // Event Listeners
   setupEventListeners();
@@ -147,6 +162,32 @@ function setupEventListeners() {
       state.voice = e.target.value;
       localStorage.setItem('gemini_voice', state.voice);
       showToast(`ভয়েস পরিবর্তন করে "${state.voice}" করা হয়েছে।`, 'info');
+    });
+  }
+
+  // Voice Tone change (Human Persona)
+  if (elements.toneSelect) {
+    elements.toneSelect.addEventListener('change', (e) => {
+      const selected = e.target.value;
+      if (selected === 'custom') {
+        if (elements.customToneInput) {
+          elements.customToneInput.focus();
+        }
+      } else {
+        state.voiceTone = selected;
+        if (elements.customToneInput) {
+          elements.customToneInput.value = selected;
+        }
+        localStorage.setItem('gemini_voice_tone', state.voiceTone);
+        showToast('মানুষের মতো প্রাণবন্ত বাচনভঙ্গি ও টোন সেট করা হয়েছে!', 'success');
+      }
+    });
+  }
+
+  if (elements.customToneInput) {
+    elements.customToneInput.addEventListener('input', (e) => {
+      state.voiceTone = e.target.value.trim() || 'Bright, sunny, welcoming morning greeting with a subtle vocal smile and crisp pacing';
+      localStorage.setItem('gemini_voice_tone', state.voiceTone);
     });
   }
 
@@ -589,7 +630,8 @@ window.generateSingleChunk = async function(chunkId) {
         apiKeys: parseKeys(state.apiKey),
         text: chunk.text,
         voice: state.voice,
-        model: state.model
+        model: state.model,
+        tone: state.voiceTone
       })
     });
 
@@ -1199,6 +1241,34 @@ function setupPolicyScanner() {
     });
   }
 }
+
+// Global helper for vocal expression insertion (Google AI Studio acoustic tags)
+window.insertExpressionTag = function(tag) {
+  const textarea = elements.mainTextInput;
+  if (!textarea) return;
+
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const original = textarea.value;
+
+  if (start !== undefined && end !== undefined) {
+    const before = original.substring(0, start);
+    const after = original.substring(end);
+    const needSpaceBefore = before.length > 0 && !before.endsWith(' ');
+    const needSpaceAfter = after.length > 0 && !after.startsWith(' ');
+    const insertStr = (needSpaceBefore ? ' ' : '') + tag + (needSpaceAfter ? ' ' : '');
+    
+    textarea.value = before + insertStr + after;
+    textarea.selectionStart = textarea.selectionEnd = start + insertStr.length;
+  } else {
+    textarea.value = (original ? original + ' ' : '') + tag + ' ';
+  }
+
+  textarea.focus();
+  updateTextStats();
+  splitText();
+  showToast(`এক্সপ্রেশন ট্যাগ ${tag} যোগ করা হয়েছে!`, 'info');
+};
 
 // Global helper for single-word replacement
 window.replaceWordInSafeEditor = function(oldWord, newWord) {

@@ -268,6 +268,7 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
         text = req_json.get("text", "").strip()
         voice = req_json.get("voice", "Kore").strip()
         model = req_json.get("model", "gemini-3.8-flash-tts").strip()
+        tone = req_json.get("tone", "").strip() or "Bright, sunny, welcoming morning greeting with a subtle vocal smile and crisp pacing"
 
         if not keys_list:
             self.send_json_response(400, {
@@ -279,14 +280,18 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json_response(400, {"error": "কোনো টেক্সট পাওয়া যায়নি।"})
             return
 
+        text_part = {
+            "text": text.strip()
+        }
+        if tone:
+            text_part["speechMetadata"] = {
+                "style": tone
+            }
+
         payload = {
             "contents": [
                 {
-                    "parts": [
-                        {
-                            "text": text.strip()
-                        }
-                    ]
+                    "parts": [text_part]
                 }
             ],
             "generationConfig": {
@@ -345,6 +350,36 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
                         last_error = err_json.get("error", {}).get("message", err_body)
                     except Exception:
                         last_error = err_body
+
+                    # If model rejected speechMetadata, retry without it
+                    if "speechMetadata" in text_part and (e.code == 400 or "speechmetadata" in last_error.lower()):
+                        try:
+                            fallback_payload = {
+                                "contents": [{"parts": [{"text": text.strip()}]}],
+                                "generationConfig": payload["generationConfig"]
+                            }
+                            fb_req = urllib.request.Request(
+                                url,
+                                data=json.dumps(fallback_payload).encode("utf-8"),
+                                headers={"Content-Type": "application/json"},
+                                method="POST"
+                            )
+                            with urllib.request.urlopen(fb_req, timeout=60) as fb_res:
+                                fb_data = json.loads(fb_res.read().decode("utf-8"))
+                                fb_candidates = fb_data.get("candidates", [])
+                                if fb_candidates:
+                                    fb_parts = fb_candidates[0].get("content", {}).get("parts", [])
+                                    for part in fb_parts:
+                                        if "inlineData" in part:
+                                            audio_part = part["inlineData"]
+                                            break
+                                    if audio_part:
+                                        used_key_idx = k_idx
+                                        used_model = current_model
+                                        break
+                        except Exception as fb_err:
+                            last_error = str(fb_err)
+
                     if e.code == 429 or "quota" in last_error.lower() or "resource_exhausted" in last_error.lower():
                         had_quota_error = True
                         continue
