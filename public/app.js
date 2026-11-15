@@ -2405,30 +2405,33 @@ async function downloadVideoZip() {
 
   try {
     const zip = new JSZip();
+    // Create two separate clean subfolders: Images and Audios (No text files)
+    const imageFolder = zip.folder('Images');
+    const audioFolder = zip.folder('Audios');
     let count = 0;
 
     for (let idx = 0; idx < videoState.scenes.length; idx++) {
       const scene = videoState.scenes[idx];
       const pad = String(idx + 1).padStart(2, '0');
 
+      // Add voiceover audio to Audios folder
       if (scene.audioBlob) {
-        zip.file(`Scene_${pad}_audio.wav`, scene.audioBlob);
+        audioFolder.file(`Scene_${pad}.wav`, scene.audioBlob);
         count++;
       }
 
+      // Add cinematic scene image to Images folder
       if (scene.imageBlob) {
-        zip.file(`Scene_${pad}_image.jpg`, scene.imageBlob);
+        imageFolder.file(`Scene_${pad}.jpg`, scene.imageBlob);
         count++;
       } else if (scene.imageUrl) {
         const blob = await fetchImageBlobWithProxy(scene.imageUrl);
         if (blob) {
           scene.imageBlob = blob;
-          zip.file(`Scene_${pad}_image.jpg`, blob);
+          imageFolder.file(`Scene_${pad}.jpg`, blob);
           count++;
         }
       }
-
-      zip.file(`Scene_${pad}_script.txt`, scene.text);
     }
 
     if (count === 0) {
@@ -2445,7 +2448,7 @@ async function downloadVideoZip() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast('সব ছবি ও অডিও সফলভাবে ZIP ডাউনলোড হয়েছে!', 'success');
+    showToast('ইমেজ ও অডিও ফোল্ডার সহ ZIP ফাইল ডাউনলোড সম্পন্ন হয়েছে!', 'success');
   } catch (err) {
     showToast('ZIP ডাউনলোড ব্যর্থ হয়েছে: ' + err.message, 'error');
   }
