@@ -457,9 +457,10 @@ AIzaSy... (২য় একাউন্ট)"
                 <h2 class="text-lg font-bold text-white">Gemini YouTube Video Studio</h2>
                 <span class="text-[11px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full font-medium">16:9 HD &amp; 9:16 Shorts</span>
                 <span class="text-[10px] bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded-full font-semibold">১০০% ফ্রি এআই</span>
+                <span class="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">🌿 অটো-প্রাকৃতিক শব্দ</span>
                 <span class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-medium">No Watermark</span>
               </div>
-              <p class="text-xs text-slate-400 mt-0.5">সম্পূর্ণ গল্প দিন ➜ প্রতি দৃশ্যে স্বয়ংক্রিয়ভাবে সিনেমাটিক ছবি ও মানুষের মত অডিও তৈরি করুন</p>
+              <p class="text-xs text-slate-400 mt-0.5">সম্পূর্ণ গল্প দিন ➜ প্রতি দৃশ্যে স্বয়ংক্রিয়ভাবে সিনেমাটিক ছবি, মানুষের মত ভয়েসওভার ও বাস্তবসম্মত প্রাকৃতিক আবহ তৈরি করুন</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
@@ -607,7 +608,7 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
             </button>
             <button id="videoGenerateAllBothBtn" type="button" class="bg-gradient-to-r from-indigo-600 via-purple-600 to-teal-600 hover:from-indigo-500 hover:to-teal-500 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-indigo-600/25">
               <i data-lucide="play-circle" class="w-4 h-4"></i>
-              <span id="videoGenerateAllBothText">🎬 সব ছবি ও অডিও একসাথে জেনারেট</span>
+              <span id="videoGenerateAllBothText">🎬 ভিডিও ও অডিও জেনারেট</span>
             </button>
             <button id="videoGenerateAllImageBtn" type="button" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white font-medium text-xs px-3 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
               <i data-lucide="image" class="w-4 h-4 text-indigo-400"></i>
@@ -623,10 +624,14 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
             </button>
           </div>
 
-          <div class="flex items-center gap-2">
-            <button id="videoDownloadZipBtn" type="button" disabled class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs px-4 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
-              <i data-lucide="archive" class="w-4 h-4 text-indigo-400"></i>
-              <span>সব ছবি ও অডিও ZIP ডাউনলোড</span>
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="videoRenderFullMp4Btn" type="button" disabled class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-emerald-600/20 disabled:opacity-40 disabled:cursor-not-allowed">
+              <i data-lucide="film" class="w-4 h-4"></i>
+              <span>🎬 সম্পূর্ণ MP4 ভিডিও তৈরি</span>
+            </button>
+            <button id="videoDownloadZipBtn" type="button" disabled class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-medium text-xs px-4 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+              <i data-lucide="download" class="w-4 h-4 text-indigo-400"></i>
+              <span>অডিও ও ভিডিও ডাউনলোড করুন</span>
             </button>
           </div>
         </div>
@@ -680,6 +685,77 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Video Render & Player Modal (Ken Burns Full MP4 Generator) -->
+  <div id="videoRenderModal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="relative w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh]">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between p-4 bg-slate-950 border-b border-slate-800">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+            <i data-lucide="clapperboard" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h4 class="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+              <span>সিনেমাটিক ভিডিও রেন্ডারার ও প্লেয়ার</span>
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">১০০% ফ্রি মোশন</span>
+            </h4>
+            <p class="text-[11px] text-slate-400">Ken Burns ক্যামেরা মোশন এবং জেমিনাই ভয়েসওভার দিয়ে তৈরি ফুল ভিডিও</p>
+          </div>
+        </div>
+        <button id="videoRenderModalCloseBtn" type="button" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-5 flex flex-col items-center justify-center space-y-4 overflow-y-auto">
+        <!-- Render In-Progress State -->
+        <div id="videoRenderProgressBox" class="w-full space-y-2.5">
+          <div class="flex items-center justify-between text-xs">
+            <span id="videoRenderStatusText" class="text-emerald-400 font-semibold flex items-center gap-2">
+              <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+              <span>ভিডিও রেন্ডার হচ্ছে... দৃশ্য ১/৫</span>
+            </span>
+            <span id="videoRenderPercent" class="text-teal-300 font-bold font-mono">০%</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+            <div id="videoRenderProgressBar" class="bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-500 h-2.5 rounded-full transition-all duration-200" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Live Canvas Preview Container (Active during render) -->
+        <div id="videoRenderCanvasWrapper" class="w-full flex items-center justify-center bg-black/90 rounded-xl overflow-hidden border border-slate-800 shadow-inner max-h-[55vh]">
+          <canvas id="videoRenderCanvas" width="1280" height="720" class="max-w-full max-h-[52vh] object-contain"></canvas>
+        </div>
+
+        <!-- Final Video Player (Displayed when complete) -->
+        <div id="videoRenderPlayerWrapper" class="w-full hidden flex-col items-center space-y-3">
+          <video id="videoRenderPlayer" controls playsinline class="w-full rounded-xl bg-black border border-slate-800 max-h-[55vh] shadow-2xl"></video>
+          <div class="w-full bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center gap-2 text-slate-300">
+              <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+              <span>ভিডিও সম্পূর্ণ তৈরি হয়েছে! সরাসরি ইউটিউব বা শর্টসে আপলোড করতে পারেন।</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <a id="videoRenderDownloadBtn" href="#" download="YouTube_Story_Video.mp4" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-600/25">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span>ভিডিও ডাউনলোড করুন (.MP4)</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-3.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs">
+        <p class="text-slate-500 text-[11px]">কোনো পেইড API ছাড়া আপনার ব্রাউজারের Canvas ও Web Audio ইঞ্জিন দিয়ে রেন্ডার হচ্ছে</p>
+        <button id="videoRenderCancelBtn" type="button" class="text-rose-400 hover:text-rose-300 px-3 py-1.5 rounded-lg hover:bg-slate-800 transition">
+          বাতিল করুন
+        </button>
+      </div>
     </div>
   </div>
 

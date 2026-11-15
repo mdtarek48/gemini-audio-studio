@@ -28,7 +28,10 @@ const videoState = {
   unitsPerScene: 2,
   voice: localStorage.getItem('gemini_voice') || 'Kore',
   isGeneratingAll: false,
-  lastImageGeneratedTimestamp: 0
+  lastImageGeneratedTimestamp: 0,
+  renderedVideoBlob: null,
+  renderedVideoExt: 'mp4',
+  isRenderingVideo: false
 };
 
 // DOM Elements
@@ -88,6 +91,7 @@ const elements = {
   videoGenerateAllAudioBtn: document.getElementById('videoGenerateAllAudioBtn'),
   videoStopBtn: document.getElementById('videoStopBtn'),
   videoDownloadZipBtn: document.getElementById('videoDownloadZipBtn'),
+  videoRenderFullMp4Btn: document.getElementById('videoRenderFullMp4Btn'),
   videoProgressBanner: document.getElementById('videoProgressBanner'),
   videoProgressText: document.getElementById('videoProgressText'),
   videoProgressPercent: document.getElementById('videoProgressPercent'),
@@ -98,6 +102,20 @@ const elements = {
   videoModalImage: document.getElementById('videoModalImage'),
   videoModalTitle: document.getElementById('videoModalTitle'),
   videoModalDownloadBtn: document.getElementById('videoModalDownloadBtn'),
+
+  // Video Render Modal Elements (Ken Burns Full MP4 Generator)
+  videoRenderModal: document.getElementById('videoRenderModal'),
+  videoRenderModalCloseBtn: document.getElementById('videoRenderModalCloseBtn'),
+  videoRenderProgressBox: document.getElementById('videoRenderProgressBox'),
+  videoRenderStatusText: document.getElementById('videoRenderStatusText'),
+  videoRenderPercent: document.getElementById('videoRenderPercent'),
+  videoRenderProgressBar: document.getElementById('videoRenderProgressBar'),
+  videoRenderCanvasWrapper: document.getElementById('videoRenderCanvasWrapper'),
+  videoRenderCanvas: document.getElementById('videoRenderCanvas'),
+  videoRenderPlayerWrapper: document.getElementById('videoRenderPlayerWrapper'),
+  videoRenderPlayer: document.getElementById('videoRenderPlayer'),
+  videoRenderDownloadBtn: document.getElementById('videoRenderDownloadBtn'),
+  videoRenderCancelBtn: document.getElementById('videoRenderCancelBtn'),
 
   // Pollinations API Key Elements (Text to Video Tab)
   tabVideoPollinationsKeysInput: document.getElementById('tabVideoPollinationsKeysInput'),
@@ -1602,6 +1620,18 @@ function setupVideoStudioEventListeners() {
   if (elements.videoDownloadZipBtn) {
     elements.videoDownloadZipBtn.addEventListener('click', downloadVideoZip);
   }
+
+  if (elements.videoRenderFullMp4Btn) {
+    elements.videoRenderFullMp4Btn.addEventListener('click', startVideoRendering);
+  }
+
+  if (elements.videoRenderModalCloseBtn) {
+    elements.videoRenderModalCloseBtn.addEventListener('click', closeVideoRenderModal);
+  }
+
+  if (elements.videoRenderCancelBtn) {
+    elements.videoRenderCancelBtn.addEventListener('click', closeVideoRenderModal);
+  }
 }
 
 function getVideoDemoText() {
@@ -1666,10 +1696,12 @@ function splitVideoScript() {
     if (!prompt || /[\u0980-\u09FF]/.test(prompt) || prompt.startsWith('A cinematic shot depicting:')) {
       prompt = translateBengaliSceneToEnglish(text, videoState.visualStyle, videoState.aspectRatio);
     }
+    const ambient = existing && existing.ambientSound ? existing.ambientSound : detectAmbientSound(text);
     return {
       id: idx + 1,
       text: text,
       visualPrompt: prompt,
+      ambientSound: ambient,
       imageBlob: existing ? existing.imageBlob : null,
       imageUrl: existing ? existing.imageUrl : '',
       imageStatus: existing ? existing.imageStatus : 'idle',
@@ -1692,9 +1724,13 @@ function renderVideoScenes() {
     elements.videoSceneCount.textContent = videoState.scenes.length;
   }
 
-  const hasCompletedWork = videoState.scenes.some(s => s.audioBlob || s.imageBlob);
+  const hasCompletedWork = videoState.scenes.some(s => s.audioBlob || s.imageBlob || s.imageUrl);
   if (elements.videoDownloadZipBtn) {
     elements.videoDownloadZipBtn.disabled = !hasCompletedWork || videoState.isGeneratingAll;
+  }
+  if (elements.videoRenderFullMp4Btn) {
+    const canRender = videoState.scenes.some(s => (s.audioBlob || s.audioUrl) && (s.imageBlob || s.imageUrl));
+    elements.videoRenderFullMp4Btn.disabled = !canRender || videoState.isGeneratingAll;
   }
 
   if (videoState.scenes.length === 0) {
@@ -1763,6 +1799,21 @@ function renderVideoScenes() {
                 class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 text-xs text-slate-200 rounded-xl p-3 outline-none transition resize-y leading-relaxed">${escapeHtml(scene.text)}</textarea>
             </div>
 
+            <!-- Auto Detected Natural Sound Badge -->
+            <div class="flex items-center justify-between bg-slate-950/80 border border-emerald-500/30 rounded-xl px-3 py-2 text-xs shadow-sm">
+              <div class="flex items-center gap-2 text-emerald-300">
+                <i data-lucide="${(scene.ambientSound && scene.ambientSound.icon) || 'volume-2'}" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+                <span class="text-[11px] font-medium text-slate-400">অটো প্রাকৃতিক সাউন্ড:</span>
+                <span class="text-[11px] font-bold text-white">${escapeHtml(scene.ambientSound ? scene.ambientSound.label : '🌿 প্রশান্ত সিনেমাটিক আবহ')}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="previewAmbientSound('${scene.ambientSound ? scene.ambientSound.id : 'peaceful_nature'}')" class="text-[10px] text-teal-400 hover:text-teal-300 flex items-center gap-1 font-medium hover:underline">
+                  <i data-lucide="play" class="w-2.5 h-2.5 fill-current"></i> টেস্ট শুনুন
+                </button>
+                <span class="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-medium">১০০% অটো</span>
+              </div>
+            </div>
+
             <!-- Visual Prompt Box (Collapsible / Editable) -->
             <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 space-y-2">
               <div class="flex items-center justify-between">
@@ -1785,7 +1836,7 @@ function renderVideoScenes() {
             <div class="flex flex-wrap items-center gap-2 pt-1">
               <button type="button" onclick="generateSceneBoth(${scene.id})" class="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-teal-600 hover:from-indigo-500 hover:to-teal-500 text-white font-medium text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20">
                 <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
-                <span>ছবি ও অডিও একসাথে জেনারেট</span>
+                <span>ভিডিও ও অডিও জেনারেট</span>
               </button>
               <button type="button" onclick="generateSceneImage(${scene.id})" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white text-xs rounded-xl border border-slate-700/80 transition flex items-center gap-1.5">
                 <i data-lucide="image" class="w-3.5 h-3.5 text-indigo-400"></i>
@@ -2041,6 +2092,99 @@ function translateBengaliSceneToEnglish(text, styleDesc = '', ratioDesc = '') {
   }
 
   return `Cinematic wide shot, ${promptCore}, ${styleDesc || 'cinematic photorealistic 8k, volumetric lighting, shot on 35mm film'}, ${ratioDesc || '16:9 widescreen'}, masterpiece, highly detailed, no text, no watermark`;
+}
+
+// ==========================================
+// Intelligent Ambient Sound Detection Engine
+// Automatically detects natural atmosphere from Bengali text
+// ==========================================
+function detectAmbientSound(bengaliText) {
+  if (!bengaliText) {
+    return {
+      id: 'peaceful_nature',
+      name: 'প্রশান্ত সিনেমাটিক আবহ',
+      label: '🌿 প্রশান্ত সিনেমাটিক আবহ',
+      icon: 'sparkles'
+    };
+  }
+
+  const t = bengaliText.toLowerCase();
+
+  // 1. Tiger / Predator / Suspense / Roar (বাঘ, গর্জন, বিপদ, ভয় - ড্রামাটিক মুহূর্ত সবার আগে)
+  if (/বাঘ|গর্জন|চিৎকার|হিংস্র|আক্রমণ|শিকার|বিপদ|ভয়|আতঙ্ক|কাঁপিয়ে|শিউরে|থরথর|থমথমে|ভীতিকর/i.test(t)) {
+    return {
+      id: 'dramatic_suspense',
+      name: 'গভীর বনের থমথমে ও রহস্যময় ড্রামাটিক আবহ',
+      label: '🐅 গভীর বনের থমথমে ড্রামাটিক আবহ',
+      icon: 'alert-triangle'
+    };
+  }
+
+  // 2. Rain / Storm / Thunder (বৃষ্টি, ঝড়, মেঘ, বিজলি, বজ্রপাত)
+  if (/বৃষ্টি|বর্ষা|মেঘ|বিদ্যুৎ|বজ্রপাত|ঝড়|তুফান|ঝোড়ো|ঝুম বৃষ্টি/i.test(t)) {
+    return {
+      id: 'rain_storm',
+      name: 'মৃদু বৃষ্টির রিমঝিম শব্দ ও বাতাস',
+      label: '🌧️ মৃদু বৃষ্টির রিমঝিম শব্দ',
+      icon: 'cloud-rain'
+    };
+  }
+
+  // 3. Dawn / Morning / Birds / Sunrise (ভোর, সকাল, আলো, সূর্য, কিচিরমিচির, পাখি)
+  if (/ভোর|সকাল|প্রাতঃ|সূর্য|সূর্যকিরণ|সোনালী আলো|প্রথম আলো|পাখি|কিচিরমিচির|কোকিল|ডানা/i.test(t)) {
+    return {
+      id: 'morning_birds',
+      name: 'ভোরের মিষ্টি পাখির কলকাকলি ও হাওয়া',
+      label: '🐦 ভোরের পাখির মিষ্টি কলকাকলি',
+      icon: 'sun'
+    };
+  }
+
+  // 4. Water / River / Creek / Boat (নদী, খাঁড়ি, পানি, নৌকা, মাঝি, বৈঠা)
+  if (/নদী|খাঁড়ি|পানি|জল|নৌকা|মাঝি|বৈঠা|দাঁড়|স্রোত|ঢেউ|সাগর|সমুদ্র|খাল|বিল|ঘাট|কিনারা|গাঙ|তীর/i.test(t)) {
+    if (/রাত|অন্ধকার|নিস্তব্ধ|চাঁদ/i.test(t)) {
+      return {
+        id: 'river_night',
+        name: 'নদীর পানির ছলাৎছলাৎ ও রাতের শান্ত আবহ',
+        label: '🌊 নদীর জল ও রাতের বনের আবহ',
+        icon: 'waves'
+      };
+    }
+    return {
+      id: 'river_water',
+      name: 'নদীর শান্ত পানির কলতান ও ঢেউ',
+      label: '🌊 নদীর শান্ত পানি ও ঢেউয়ের শব্দ',
+      icon: 'waves'
+    };
+  }
+
+  // 5. Night / Moonlight / Deep Forest (রাত, জ্যোৎস্না, আঁধার, বন, সুন্দরবন)
+  if (/রাত|গভীর রাত|অন্ধকার|আঁধার|চাঁদ|রুপোলি চাঁদ|জ্যোৎস্না|কুয়াশা|নিস্তব্ধ|নিঝুম|বন|সুন্দরবন|জঙ্গল|অরণ্য/i.test(t)) {
+    return {
+      id: 'night_forest',
+      name: 'রাতের বনের নিস্তব্ধতা ও ঝিঁঝিঁ পোকার ডাক',
+      label: '🌙 রাতের বন ও ঝিঁঝিঁ পোকার ডাক',
+      icon: 'moon'
+    };
+  }
+
+  // 6. Wind / Mountain / Valley (বাতাস, হাওয়া, শীত, পাহাড়)
+  if (/বাতাস|হাওয়া|সমীরণ|শীতল|পাহাড়|উপত্যকা|প্রান্তর|গাছপালা|ডালপালা/i.test(t)) {
+    return {
+      id: 'wind_breeze',
+      name: 'প্রশান্ত বনের মিষ্টি বাতাস',
+      label: '🍃 প্রশান্ত বনের মিষ্টি বাতাস',
+      icon: 'wind'
+    };
+  }
+
+  // Default: Peaceful nature
+  return {
+    id: 'peaceful_nature',
+    name: 'প্রশান্ত সিনেমাটিক আবহ',
+    label: '🌿 প্রশান্ত সিনেমাটিক আবহ',
+    icon: 'sparkles'
+  };
 }
 
 async function generateVisualPromptForScene(sceneText, style, aspectRatio) {
@@ -2500,6 +2644,10 @@ function updateVideoControlsUI() {
     const hasWork = videoState.scenes.some(s => s.audioBlob || s.imageUrl);
     elements.videoDownloadZipBtn.disabled = !hasWork || isRunning;
   }
+  if (elements.videoRenderFullMp4Btn) {
+    const canRender = videoState.scenes.some(s => (s.audioBlob || s.audioUrl) && (s.imageBlob || s.imageUrl));
+    elements.videoRenderFullMp4Btn.disabled = !canRender || isRunning;
+  }
 }
 
 async function downloadVideoZip() {
@@ -2514,7 +2662,7 @@ async function downloadVideoZip() {
     return;
   }
 
-  showToast('YouTube ভিডিও প্রজেক্টের ZIP তৈরি হচ্ছে...', 'info');
+  showToast('YouTube অডিও ও ভিডিও প্রজেক্টের ZIP তৈরি হচ্ছে...', 'info');
 
   try {
     const zip = new JSZip();
@@ -2547,6 +2695,13 @@ async function downloadVideoZip() {
       }
     }
 
+    // Include full rendered video if it exists
+    if (videoState.renderedVideoBlob) {
+      const ext = videoState.renderedVideoExt || 'mp4';
+      zip.file(`Full_Story_Video.${ext}`, videoState.renderedVideoBlob);
+      count++;
+    }
+
     if (count === 0) {
       showToast('ডাউনলোড করার মত অডিও বা ছবি তৈরি হয়নি।', 'warning');
       return;
@@ -2561,7 +2716,12 @@ async function downloadVideoZip() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast('ইমেজ ও অডিও ফোল্ডার সহ ZIP ফাইল ডাউনলোড সম্পন্ন হয়েছে!', 'success');
+
+    if (videoState.renderedVideoBlob) {
+      showToast('সম্পূর্ণ ভিডিও, ইমেজ ও অডিও সহ প্রজেক্ট ZIP ডাউনলোড সম্পন্ন হয়েছে!', 'success');
+    } else {
+      showToast('ইমেজ ও অডিও ফোল্ডার সহ ZIP ডাউনলোড হয়েছে! ফুল মোশন ভিডিওর জন্য "🎬 সম্পূর্ণ MP4 ভিডিও তৈরি" ক্লিক করুন।', 'success');
+    }
   } catch (err) {
     showToast('ZIP ডাউনলোড ব্যর্থ হয়েছে: ' + err.message, 'error');
   }
@@ -2574,7 +2734,11 @@ window.generateSceneAudio = generateSceneAudio;
 
 window.updateVideoSceneText = function(id, newText) {
   const scene = videoState.scenes.find(s => s.id === id);
-  if (scene) scene.text = newText;
+  if (scene) {
+    scene.text = newText;
+    scene.ambientSound = detectAmbientSound(newText);
+    renderVideoScenes();
+  }
 };
 
 window.updateVideoScenePrompt = function(id, newPrompt) {
@@ -2652,6 +2816,575 @@ window.openVideoImageModal = function(imgSrc, title, downloadName) {
     if (window.lucide) window.lucide.createIcons();
   }
 };
+
+// ==========================================
+// In-Browser Ken Burns Video Renderer Engine
+// 100% Free HTML5 Canvas + Web Audio API + MediaRecorder
+// ==========================================
+let renderCancelled = false;
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Image load failed'));
+    img.src = src;
+  });
+}
+
+function drawImageCover(ctx, img, x, y, w, h) {
+  if (!img || !img.width || !img.height) return;
+  const imgRatio = img.width / img.height;
+  const canvasRatio = w / h;
+  let sWidth = img.width;
+  let sHeight = img.height;
+  let sx = 0;
+  let sy = 0;
+
+  if (imgRatio > canvasRatio) {
+    sWidth = img.height * canvasRatio;
+    sx = (img.width - sWidth) / 2;
+  } else {
+    sHeight = img.width / canvasRatio;
+    sy = (img.height - sHeight) / 2;
+  }
+
+  ctx.drawImage(img, sx, sy, sWidth, sHeight, x, y, w, h);
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
+  if (!text) return;
+  const clean = text.replace(/\s+/g, ' ').trim();
+  const words = clean.split(' ');
+  const lines = [];
+  let currentLine = '';
+
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const width = ctx.measureText(testLine).width;
+    if (width > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+      if (lines.length >= 2) break;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine && lines.length < 2) {
+    lines.push(currentLine);
+  }
+
+  const startY = y - ((lines.length - 1) * lineHeight) / 2;
+  lines.forEach((line, index) => {
+    ctx.fillText(line, x, startY + (index * lineHeight));
+  });
+}
+
+function cleanupRender(audioCtx) {
+  videoState.isRenderingVideo = false;
+  if (audioCtx && audioCtx.state !== 'closed') {
+    try { audioCtx.close(); } catch (e) {}
+  }
+}
+
+function closeVideoRenderModal() {
+  renderCancelled = true;
+  videoState.isRenderingVideo = false;
+  if (elements.videoRenderPlayer) {
+    try { elements.videoRenderPlayer.pause(); } catch (e) {}
+  }
+  if (elements.videoRenderModal) {
+    elements.videoRenderModal.classList.add('hidden');
+  }
+}
+
+// ==========================================
+// Procedural Nature Sound Synthesizer
+// 100% Free Web Audio API Mathematical Nature Ambience
+// ==========================================
+function generateNatureAmbienceBuffer(audioCtx, soundId, duration) {
+  if (!audioCtx || duration <= 0) return null;
+
+  const sampleRate = audioCtx.sampleRate || 44100;
+  const totalSamples = Math.ceil(sampleRate * Math.max(1, duration));
+  const buffer = audioCtx.createBuffer(2, totalSamples, sampleRate);
+  const left = buffer.getChannelData(0);
+  const right = buffer.getChannelData(1);
+
+  // Stateful Pink Noise Generators for realistic organic sound
+  let bL0 = 0, bL1 = 0, bL2 = 0, bL3 = 0, bL4 = 0, bL5 = 0, bL6 = 0;
+  let bR0 = 0, bR1 = 0, bR2 = 0, bR3 = 0, bR4 = 0, bR5 = 0, bR6 = 0;
+  function pinkL() {
+    const w = Math.random() * 2 - 1;
+    bL0 = 0.99886 * bL0 + w * 0.0555179;
+    bL1 = 0.99332 * bL1 + w * 0.0750759;
+    bL2 = 0.96900 * bL2 + w * 0.1538520;
+    bL3 = 0.86650 * bL3 + w * 0.3104856;
+    bL4 = 0.55000 * bL4 + w * 0.5329522;
+    bL5 = -0.7616 * bL5 - w * 0.0168980;
+    const p = bL0 + bL1 + bL2 + bL3 + bL4 + bL5 + bL6 + w * 0.5362;
+    bL6 = w * 0.115926;
+    return p * 0.11;
+  }
+  function pinkR() {
+    const w = Math.random() * 2 - 1;
+    bR0 = 0.99886 * bR0 + w * 0.0555179;
+    bR1 = 0.99332 * bR1 + w * 0.0750759;
+    bR2 = 0.96900 * bR2 + w * 0.1538520;
+    bR3 = 0.86650 * bR3 + w * 0.3104856;
+    bR4 = 0.55000 * bR4 + w * 0.5329522;
+    bR5 = -0.7616 * bR5 - w * 0.0168980;
+    const p = bR0 + bR1 + bR2 + bR3 + bR4 + bR5 + bR6 + w * 0.5362;
+    bR6 = w * 0.115926;
+    return p * 0.11;
+  }
+
+  // Lowpass filter states
+  let lpL = 0;
+  let lpR = 0;
+
+  for (let i = 0; i < totalSamples; i++) {
+    const t = i / sampleRate;
+
+    // Smooth fade in & fade out envelope (0.35s)
+    let env = 1.0;
+    if (t < 0.35) {
+      env = t / 0.35;
+    } else if (t > duration - 0.35) {
+      env = Math.max(0, (duration - t) / 0.35);
+    }
+
+    let sampL = 0;
+    let sampR = 0;
+
+    switch (soundId) {
+      case 'river_water':
+      case 'river_night': {
+        // Continuous gentle water flowing (low-passed pink noise)
+        lpL = lpL * 0.92 + pinkL() * 0.08;
+        lpR = lpR * 0.92 + pinkR() * 0.08;
+
+        // Cyclic gentle wave swell every 3.2s
+        const wave = 0.65 + 0.35 * Math.sin((2 * Math.PI * t) / 3.2);
+        sampL = lpL * wave * 1.5;
+        sampR = lpR * wave * 1.5;
+
+        // If river at night: subtle cricket chirping in distance
+        if (soundId === 'river_night') {
+          const cricketCycle = (t % 1.5);
+          if (cricketCycle < 0.18) {
+            const cSine = Math.sin(2 * Math.PI * 4700 * t);
+            const cPulse = Math.sin(2 * Math.PI * 25 * cricketCycle) > 0 ? 1 : 0;
+            sampL += cSine * cPulse * 0.035;
+            sampR += cSine * cPulse * 0.04;
+          }
+        }
+        break;
+      }
+
+      case 'night_forest': {
+        // Soft quiet night air
+        sampL = pinkL() * 0.18;
+        sampR = pinkR() * 0.18;
+
+        // Rhythmic forest crickets (3 rapid chirp pulses every 1.25s)
+        const cycle = t % 1.25;
+        if (cycle < 0.22) {
+          const pulse = Math.sin(2 * Math.PI * 24 * cycle) > 0 ? 1 : 0;
+          const toneL = Math.sin(2 * Math.PI * 4650 * t);
+          const toneR = Math.sin(2 * Math.PI * 4800 * (t + 0.015));
+          sampL += toneL * pulse * 0.06;
+          sampR += toneR * pulse * 0.065;
+        }
+        break;
+      }
+
+      case 'morning_birds': {
+        // Gentle dawn breeze
+        lpL = lpL * 0.95 + pinkL() * 0.05;
+        lpR = lpR * 0.95 + pinkR() * 0.05;
+        sampL = lpL * 0.8;
+        sampR = lpR * 0.8;
+
+        // Sweet bird chirps at intervals (at ~0.8s, ~2.2s, ~3.8s, ~5.4s)
+        const birdCycle = t % 1.8;
+        if (birdCycle > 0.4 && birdCycle < 0.52) {
+          const chirpProgress = (birdCycle - 0.4) / 0.12;
+          const freq = 3100 - chirpProgress * 800; // 3100 Hz down to 2300 Hz
+          const birdTone = Math.sin(2 * Math.PI * freq * t);
+          const birdEnv = Math.sin(Math.PI * chirpProgress);
+          sampL += birdTone * birdEnv * 0.08;
+          sampR += birdTone * birdEnv * 0.06;
+        }
+        break;
+      }
+
+      case 'rain_storm': {
+        // Soft rain droplets texture (white + pink noise combo)
+        const whiteL = (Math.random() * 2 - 1) * 0.12;
+        const whiteR = (Math.random() * 2 - 1) * 0.12;
+        sampL = pinkL() * 0.35 + whiteL;
+        sampR = pinkR() * 0.35 + whiteR;
+
+        // Distant wind modulation
+        const windGust = 0.7 + 0.3 * Math.sin((2 * Math.PI * t) / 4.0);
+        sampL *= windGust;
+        sampR *= windGust;
+        break;
+      }
+
+      case 'wind_breeze': {
+        // Resonant sweeping wind
+        const cutoff = 0.92 + 0.05 * Math.sin((2 * Math.PI * t) / 3.8);
+        lpL = lpL * cutoff + pinkL() * (1 - cutoff);
+        lpR = lpR * cutoff + pinkR() * (1 - cutoff);
+        sampL = lpL * 1.6;
+        sampR = lpR * 1.6;
+        break;
+      }
+
+      case 'dramatic_suspense': {
+        // Low ominous sub-bass drone with 1.8 Hz acoustic beat
+        const drone = Math.sin(2 * Math.PI * 55 * t) * 0.12 + Math.sin(2 * Math.PI * 56.8 * t) * 0.08;
+        lpL = lpL * 0.96 + pinkL() * 0.04;
+        lpR = lpR * 0.96 + pinkR() * 0.04;
+        sampL = drone + lpL * 0.6;
+        sampR = drone + lpR * 0.6;
+        break;
+      }
+
+      case 'peaceful_nature':
+      default: {
+        // Calm atmospheric outdoor presence + warm harmonic pad
+        lpL = lpL * 0.94 + pinkL() * 0.06;
+        lpR = lpR * 0.94 + pinkR() * 0.06;
+        const pad = (Math.sin(2 * Math.PI * 220 * t) + Math.sin(2 * Math.PI * 330 * t)) * 0.025;
+        sampL = lpL * 0.9 + pad;
+        sampR = lpR * 0.9 + pad;
+        break;
+      }
+    }
+
+    left[i] = Math.max(-1, Math.min(1, sampL * env));
+    right[i] = Math.max(-1, Math.min(1, sampR * env));
+  }
+
+  return buffer;
+}
+
+let currentAmbientPreview = null;
+window.previewAmbientSound = function(soundId) {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioContextClass();
+    if (ctx.state === 'suspended') ctx.resume();
+
+    if (currentAmbientPreview) {
+      try { currentAmbientPreview.stop(); } catch (e) {}
+    }
+
+    const buf = generateNatureAmbienceBuffer(ctx, soundId, 4.0);
+    if (!buf) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.35;
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    src.start();
+    currentAmbientPreview = src;
+    showToast('প্রাকৃতিক আবহ সাউন্ড বাজছে (৪ সেকেন্ড)...', 'info');
+  } catch (e) {
+    console.warn('Preview sound error:', e);
+  }
+};
+
+async function startVideoRendering() {
+  if (videoState.isRenderingVideo) return;
+
+  const validScenes = videoState.scenes.filter(s => (s.audioBlob || s.audioUrl) && (s.imageBlob || s.imageUrl));
+  if (validScenes.length === 0) {
+    showToast('ভিডিও বানানোর জন্য অন্তত একটি দৃশ্যের অডিও ও ছবি জেনারেট থাকতে হবে। "🎬 ভিডিও ও অডিও জেনারেট" বাটনে ক্লিক করুন।', 'warning');
+    return;
+  }
+
+  if (!elements.videoRenderModal) return;
+  elements.videoRenderModal.classList.remove('hidden');
+  renderCancelled = false;
+  videoState.isRenderingVideo = true;
+
+  // Reset UI elements
+  if (elements.videoRenderProgressBox) elements.videoRenderProgressBox.classList.remove('hidden');
+  if (elements.videoRenderCanvasWrapper) elements.videoRenderCanvasWrapper.classList.remove('hidden');
+  if (elements.videoRenderPlayerWrapper) elements.videoRenderPlayerWrapper.classList.add('hidden');
+  if (elements.videoRenderProgressBar) elements.videoRenderProgressBar.style.width = '0%';
+  if (elements.videoRenderPercent) elements.videoRenderPercent.textContent = '০%';
+  if (elements.videoRenderStatusText) {
+    elements.videoRenderStatusText.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>মিডিয়া প্রিলোড ও প্রস্তুত হচ্ছে...</span>`;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  const canvas = elements.videoRenderCanvas;
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  // Set resolution based on format
+  if (videoState.aspectRatio === '9:16') {
+    canvas.width = 720;
+    canvas.height = 1280;
+  } else if (videoState.aspectRatio === '1:1') {
+    canvas.width = 720;
+    canvas.height = 720;
+  } else {
+    canvas.width = 1280;
+    canvas.height = 720;
+  }
+
+  let audioCtx = null;
+  let recorder = null;
+
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContextClass();
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+    }
+
+    // Step 1: Preload and decode all scene assets in advance
+    const preloaded = [];
+    for (let i = 0; i < validScenes.length; i++) {
+      if (renderCancelled) break;
+      const scene = validScenes[i];
+      if (elements.videoRenderStatusText) {
+        elements.videoRenderStatusText.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>মিডিয়া লোড হচ্ছে (${i + 1}/${validScenes.length})...</span>`;
+        if (window.lucide) window.lucide.createIcons();
+      }
+
+      // Preload Image
+      let img = null;
+      try {
+        let imgBlob = scene.imageBlob;
+        if (!imgBlob && scene.imageUrl) {
+          imgBlob = await fetchImageBlobWithProxy(scene.imageUrl);
+          scene.imageBlob = imgBlob;
+        }
+        if (imgBlob) {
+          const objectUrl = URL.createObjectURL(imgBlob);
+          img = await loadImage(objectUrl);
+        }
+      } catch (err) {
+        console.warn(`Scene ${scene.id} image preload warning:`, err);
+      }
+
+      // Decode Audio
+      let audioBuffer = null;
+      let duration = 4.0; // default 4s if audio missing
+      if (scene.audioBlob) {
+        try {
+          const ab = await scene.audioBlob.arrayBuffer();
+          audioBuffer = await audioCtx.decodeAudioData(ab);
+          duration = audioBuffer.duration;
+        } catch (err) {
+          console.warn(`Scene ${scene.id} audio decode warning:`, err);
+        }
+      }
+
+      preloaded.push({ scene, img, audioBuffer, duration });
+    }
+
+    if (renderCancelled) {
+      cleanupRender(audioCtx);
+      return;
+    }
+
+    // Step 2: Configure Canvas + Audio Stream Capture
+    const audioDest = audioCtx.createMediaStreamDestination();
+    const canvasStream = canvas.captureStream(30);
+    const audioTracks = audioDest.stream.getAudioTracks();
+    const videoTracks = canvasStream.getVideoTracks();
+    const combinedStream = new MediaStream([...videoTracks, ...audioTracks]);
+
+    let mimeType = 'video/webm;codecs=vp9,opus';
+    if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a.40.2')) {
+      mimeType = 'video/mp4;codecs=avc1,mp4a.40.2';
+    } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+      mimeType = 'video/mp4';
+    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+      mimeType = 'video/webm;codecs=vp9,opus';
+    } else if (MediaRecorder.isTypeSupported('video/webm')) {
+      mimeType = 'video/webm';
+    }
+
+    const recordedChunks = [];
+    recorder = new MediaRecorder(combinedStream, {
+      mimeType: mimeType,
+      videoBitsPerSecond: 3500000 // High-quality 3.5 Mbps HD bitrate
+    });
+
+    recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        recordedChunks.push(e.data);
+      }
+    };
+
+    recorder.start(100);
+    const totalScenes = preloaded.length;
+
+    // Step 3: Sequentially render scenes with smooth Ken Burns motion & voiceover
+    for (let idx = 0; idx < totalScenes; idx++) {
+      if (renderCancelled) break;
+      const { scene, img, audioBuffer, duration } = preloaded[idx];
+      const sceneNum = idx + 1;
+
+      if (elements.videoRenderStatusText) {
+        elements.videoRenderStatusText.innerHTML = `<i data-lucide="video" class="w-4 h-4 text-emerald-400 animate-pulse"></i><span>দৃশ্য ${sceneNum}/${totalScenes} রেন্ডার হচ্ছে...</span>`;
+        if (window.lucide) window.lucide.createIcons();
+      }
+
+      // Stream the voiceover audio
+      if (audioBuffer) {
+        const source = audioCtx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioDest);
+        source.start();
+      }
+
+      // Stream the automatic natural ambient sound for this scene
+      if (scene.ambientSound && scene.ambientSound.id) {
+        try {
+          const ambientBuf = generateNatureAmbienceBuffer(audioCtx, scene.ambientSound.id, duration);
+          if (ambientBuf) {
+            const ambientSource = audioCtx.createBufferSource();
+            ambientSource.buffer = ambientBuf;
+            const ambientGain = audioCtx.createGain();
+            // Subtle 15% volume so the voiceover is 100% crystal-clear and prominent
+            ambientGain.gain.setValueAtTime(0.16, audioCtx.currentTime);
+            ambientGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            ambientSource.connect(ambientGain);
+            ambientGain.connect(audioDest);
+            ambientSource.start();
+          }
+        } catch (ambientErr) {
+          console.warn('Ambient sound synthesis error:', ambientErr);
+        }
+      }
+
+      // Frame animation loop
+      const fps = 30;
+      const totalFrames = Math.max(15, Math.round(duration * fps));
+      const frameDurationMs = 1000 / fps;
+      const isEven = idx % 2 === 0;
+
+      for (let frame = 0; frame < totalFrames; frame++) {
+        if (renderCancelled) break;
+        const p = frame / totalFrames; // 0.0 to 1.0
+
+        // Ken Burns effect: subtle scale (1.0 to 1.12) & gentle pan
+        const zoom = isEven ? (1.0 + p * 0.12) : (1.12 - p * 0.12);
+        const panX = isEven ? ((p - 0.5) * 36) : ((0.5 - p) * 36);
+        const panY = isEven ? ((p - 0.5) * 18) : ((0.5 - p) * 18);
+
+        // Draw background and transformed image
+        ctx.save();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#090d16';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (img) {
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.scale(zoom, zoom);
+          ctx.translate(-canvas.width / 2 + panX, -canvas.height / 2 + panY);
+          drawImageCover(ctx, img, 0, 0, canvas.width, canvas.height);
+        }
+        ctx.restore();
+
+        // Cinematic bottom vignette for subtitle readability
+        const vignetteH = Math.min(160, canvas.height * 0.28);
+        const grad = ctx.createLinearGradient(0, canvas.height - vignetteH, 0, canvas.height);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.85)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, canvas.height - vignetteH, canvas.width, vignetteH);
+
+        // Bengali subtitle caption
+        if (scene.text) {
+          ctx.fillStyle = '#ffffff';
+          const fontSize = canvas.width > 800 ? 24 : 18;
+          ctx.font = `600 ${fontSize}px 'Hind Siliguri', 'Noto Sans Bengali', sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+          ctx.shadowBlur = 10;
+          drawWrappedText(ctx, scene.text, canvas.width / 2, canvas.height - (fontSize * 1.8), canvas.width - 80, fontSize * 1.35);
+          ctx.shadowBlur = 0;
+        }
+
+        // Update overall progress bar
+        const overallPercent = Math.min(100, Math.round(((idx + p) / totalScenes) * 100));
+        if (elements.videoRenderProgressBar) elements.videoRenderProgressBar.style.width = overallPercent + '%';
+        if (elements.videoRenderPercent) elements.videoRenderPercent.textContent = overallPercent + '%';
+
+        await new Promise(r => setTimeout(r, frameDurationMs));
+      }
+    }
+
+    if (renderCancelled) {
+      if (recorder && recorder.state !== 'inactive') recorder.stop();
+      cleanupRender(audioCtx);
+      return;
+    }
+
+    // Brief 300ms tail delay to ensure clean end
+    await new Promise(r => setTimeout(r, 300));
+
+    // Finish recording and display video
+    recorder.onstop = () => {
+      const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+      const blob = new Blob(recordedChunks, { type: mimeType });
+      videoState.renderedVideoBlob = blob;
+      videoState.renderedVideoExt = ext;
+      videoState.isRenderingVideo = false;
+
+      const videoUrl = URL.createObjectURL(blob);
+      if (elements.videoRenderPlayer) {
+        elements.videoRenderPlayer.src = videoUrl;
+        elements.videoRenderPlayer.play().catch(() => {});
+      }
+
+      if (elements.videoRenderDownloadBtn) {
+        elements.videoRenderDownloadBtn.href = videoUrl;
+        elements.videoRenderDownloadBtn.download = `YouTube_Story_Video_${Date.now()}.${ext}`;
+      }
+
+      // Update UI to completed state
+      if (elements.videoRenderProgressBox) elements.videoRenderProgressBox.classList.add('hidden');
+      if (elements.videoRenderCanvasWrapper) elements.videoRenderCanvasWrapper.classList.add('hidden');
+      if (elements.videoRenderPlayerWrapper) elements.videoRenderPlayerWrapper.classList.remove('hidden');
+
+      // Auto trigger video download
+      const a = document.createElement('a');
+      a.href = videoUrl;
+      a.download = `YouTube_Story_Video_${Date.now()}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      showToast('সম্পূর্ণ MP4 সিনেমাটিক ভিডিও তৈরি ও ডাউনলোড সম্পন্ন হয়েছে!', 'success');
+      cleanupRender(audioCtx);
+    };
+
+    recorder.stop();
+
+  } catch (err) {
+    console.error('Video render error:', err);
+    showToast('ভিডিও রেন্ডারিংয়ে সমস্যা হয়েছে: ' + err.message, 'error');
+    cleanupRender(audioCtx);
+  }
+}
+
+window.startVideoRendering = startVideoRendering;
+window.closeVideoRenderModal = closeVideoRenderModal;
 
 // Start app on DOM loaded
 document.addEventListener('DOMContentLoaded', init);
