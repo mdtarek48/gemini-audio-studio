@@ -1,10 +1,16 @@
 // Default Pollinations Key for Unlimited Instant Image Generation (No wait time)
 const DEFAULT_POLLINATIONS_KEY = 'sk_fizHkhVWIBfi5lXUwBZv1QzEayM5u49H';
 
+function parsePollinationsKeys(raw) {
+  return (raw || '').split(/[\n,;]+/).map(k => k.trim()).filter(Boolean);
+}
+
 // State Management
 const state = {
   apiKey: localStorage.getItem('gemini_api_key') || '',
-  pollinationsKey: localStorage.getItem('pollinations_api_key') || DEFAULT_POLLINATIONS_KEY,
+  pollinationsKey: localStorage.getItem('pollinations_api_keys') || localStorage.getItem('pollinations_api_key') || DEFAULT_POLLINATIONS_KEY,
+  pollinationsKeys: parsePollinationsKeys(localStorage.getItem('pollinations_api_keys') || localStorage.getItem('pollinations_api_key') || DEFAULT_POLLINATIONS_KEY),
+  currentPollinationsKeyIndex: 0,
   voice: localStorage.getItem('gemini_voice') || 'Kore',
   voiceTone: localStorage.getItem('gemini_voice_tone') || 'Bright, sunny, welcoming morning greeting with a subtle vocal smile and crisp pacing',
   model: localStorage.getItem('gemini_model') || 'gemini-3.8-flash-tts',
@@ -93,10 +99,10 @@ const elements = {
   videoModalTitle: document.getElementById('videoModalTitle'),
   videoModalDownloadBtn: document.getElementById('videoModalDownloadBtn'),
 
-  // Pollinations API Key Elements
-  pollinationsKeyInput: document.getElementById('pollinationsKeyInput'),
-  savePollinationsKeyBtn: document.getElementById('savePollinationsKeyBtn'),
-  pollinationsKeyBadge: document.getElementById('pollinationsKeyBadge')
+  // Pollinations API Key Elements (Text to Video Tab)
+  tabVideoPollinationsKeysInput: document.getElementById('tabVideoPollinationsKeysInput'),
+  tabVideoSavePollinationsKeysBtn: document.getElementById('tabVideoSavePollinationsKeysBtn'),
+  tabVideoPollinationsKeyBadge: document.getElementById('tabVideoPollinationsKeyBadge')
 };
 
 // Initialize
@@ -115,19 +121,25 @@ function init() {
     updateApiKeyStatus(false);
   }
 
-  // Load saved Pollinations Key (defaults to user's key for 0-second instant generation)
-  const savedPollKey = localStorage.getItem('pollinations_api_key');
-  if (!savedPollKey || !savedPollKey.trim()) {
+  // Load saved Pollinations Keys (Supports multiple keys & auto-switching)
+  const savedPollKeys = localStorage.getItem('pollinations_api_keys') || localStorage.getItem('pollinations_api_key');
+  if (!savedPollKeys || !savedPollKeys.trim()) {
+    state.pollinationsKeys = [DEFAULT_POLLINATIONS_KEY];
     state.pollinationsKey = DEFAULT_POLLINATIONS_KEY;
+    localStorage.setItem('pollinations_api_keys', DEFAULT_POLLINATIONS_KEY);
     localStorage.setItem('pollinations_api_key', DEFAULT_POLLINATIONS_KEY);
   } else {
-    state.pollinationsKey = savedPollKey.trim();
+    state.pollinationsKeys = parsePollinationsKeys(savedPollKeys);
+    state.pollinationsKey = state.pollinationsKeys.join('\n');
   }
 
   if (elements.pollinationsKeyInput) {
     elements.pollinationsKeyInput.value = state.pollinationsKey;
   }
-  updatePollinationsKeyStatus(!!state.pollinationsKey);
+  if (elements.tabVideoPollinationsKeysInput) {
+    elements.tabVideoPollinationsKeysInput.value = state.pollinationsKey;
+  }
+  updatePollinationsKeyStatus();
 
   elements.voiceSelect.value = state.voice;
   elements.modelInput.value = state.model;
@@ -193,15 +205,84 @@ function updateApiKeyStatus(hasKey) {
   }
 }
 
-function updatePollinationsKeyStatus(hasKey) {
-  if (!elements.pollinationsKeyBadge) return;
-  if (hasKey) {
-    elements.pollinationsKeyBadge.textContent = 'সক্রিয় (আনলিমিটেড স্পিড 🟢)';
-    elements.pollinationsKeyBadge.className = 'text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20';
+function updatePollinationsKeyStatus() {
+  const keys = state.pollinationsKeys && state.pollinationsKeys.length > 0 
+    ? state.pollinationsKeys 
+    : (state.pollinationsKey ? parsePollinationsKeys(state.pollinationsKey) : []);
+  
+  const hasKeys = keys.length > 0;
+  let badgeText = '';
+  if (!hasKeys) {
+    badgeText = 'ফ্রি টিয়ার (৪৫ সে. কুলডাউন)';
+  } else if (keys.length === 1) {
+    badgeText = '১টি Key সক্রিয় (আনলিমিটেড স্পিড 🟢)';
   } else {
-    elements.pollinationsKeyBadge.textContent = 'ফ্রি টিয়ার (৪৫ সে. কুলডাউন)';
-    elements.pollinationsKeyBadge.className = 'text-[11px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20';
+    badgeText = `${keys.length}টি Key সক্রিয় (অটো-সুইচিং 🟢)`;
   }
+
+  const badgeClass = hasKeys
+    ? 'text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20'
+    : 'text-[11px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20';
+
+  if (elements.pollinationsKeyBadge) {
+    elements.pollinationsKeyBadge.textContent = badgeText;
+    elements.pollinationsKeyBadge.className = badgeClass;
+  }
+  if (elements.tabVideoPollinationsKeyBadge) {
+    elements.tabVideoPollinationsKeyBadge.textContent = badgeText;
+    elements.tabVideoPollinationsKeyBadge.className = badgeClass;
+  }
+}
+
+function getActivePollinationsKey() {
+  const keys = state.pollinationsKeys && state.pollinationsKeys.length > 0
+    ? state.pollinationsKeys
+    : [DEFAULT_POLLINATIONS_KEY];
+
+  if (state.currentPollinationsKeyIndex >= keys.length) {
+    state.currentPollinationsKeyIndex = 0;
+  }
+  return keys[state.currentPollinationsKeyIndex] || DEFAULT_POLLINATIONS_KEY;
+}
+
+function rotateToNextPollinationsKey() {
+  const keys = state.pollinationsKeys && state.pollinationsKeys.length > 0
+    ? state.pollinationsKeys
+    : [DEFAULT_POLLINATIONS_KEY];
+
+  if (keys.length <= 1) return false;
+
+  const oldIndex = state.currentPollinationsKeyIndex;
+  state.currentPollinationsKeyIndex = (state.currentPollinationsKeyIndex + 1) % keys.length;
+  console.log(`[Pollinations Key Switch] Switched from Key #${oldIndex + 1} to Key #${state.currentPollinationsKeyIndex + 1} of ${keys.length}`);
+  return true;
+}
+
+function savePollinationsKeys(rawText) {
+  const keys = parsePollinationsKeys(rawText);
+  if (keys.length === 0) {
+    state.pollinationsKeys = [];
+    state.pollinationsKey = '';
+    localStorage.removeItem('pollinations_api_keys');
+    localStorage.removeItem('pollinations_api_key');
+    if (elements.pollinationsKeyInput) elements.pollinationsKeyInput.value = '';
+    if (elements.tabVideoPollinationsKeysInput) elements.tabVideoPollinationsKeysInput.value = '';
+    updatePollinationsKeyStatus();
+    showToast('Pollinations API Key ক্লিয়ার করা হয়েছে (ফ্রি টায়ার চালু)।', 'info');
+    return;
+  }
+
+  state.pollinationsKeys = keys;
+  state.pollinationsKey = keys.join('\n');
+  state.currentPollinationsKeyIndex = 0;
+  localStorage.setItem('pollinations_api_keys', state.pollinationsKey);
+  localStorage.setItem('pollinations_api_key', keys[0]);
+
+  if (elements.pollinationsKeyInput) elements.pollinationsKeyInput.value = state.pollinationsKey;
+  if (elements.tabVideoPollinationsKeysInput) elements.tabVideoPollinationsKeysInput.value = state.pollinationsKey;
+  updatePollinationsKeyStatus();
+
+  showToast(`${keys.length}টি Pollinations API Key সংরক্ষিত হয়েছে! একটার কোটা শেষ হলে অন্যটি স্বয়ংক্রিয়ভাবে কাজ করবে।`, 'success');
 }
 
 function setupEventListeners() {
@@ -260,14 +341,11 @@ function setupEventListeners() {
     showToast(`${keys.length}টি API Key সংরক্ষিত হয়েছে! একটার কোটা শেষ হলে অন্যটা স্বয়ংক্রিয়ভাবে কাজ করবে।`, 'success');
   });
 
-  // Save Pollinations API Key
-  if (elements.savePollinationsKeyBtn) {
-    elements.savePollinationsKeyBtn.addEventListener('click', () => {
-      const key = elements.pollinationsKeyInput ? elements.pollinationsKeyInput.value.trim() : '';
-      state.pollinationsKey = key;
-      localStorage.setItem('pollinations_api_key', key);
-      updatePollinationsKeyStatus(!!key);
-      showToast(key ? 'Pollinations API Key সংরক্ষিত হয়েছে! এখন কোনো অপেক্ষা ছাড়াই ছবি তৈরি হবে।' : 'Pollinations Key ক্লিয়ার করা হয়েছে।', 'success');
+  // Save Pollinations API Keys (Text to Video Tab)
+  if (elements.tabVideoSavePollinationsKeysBtn) {
+    elements.tabVideoSavePollinationsKeysBtn.addEventListener('click', () => {
+      const raw = elements.tabVideoPollinationsKeysInput ? elements.tabVideoPollinationsKeysInput.value.trim() : '';
+      savePollinationsKeys(raw);
     });
   }
 
@@ -2038,9 +2116,7 @@ function isRateLimitBanner(img) {
 }
 
 async function waitForImageCooldown(scene, isBatch = false) {
-  const activeKey = (state.pollinationsKey && state.pollinationsKey.trim().length > 0)
-    ? state.pollinationsKey.trim()
-    : DEFAULT_POLLINATIONS_KEY;
+  const activeKey = getActivePollinationsKey();
 
   // If user provided an API key, zero cooldown needed
   if (activeKey && activeKey.trim().length > 0) {
@@ -2197,41 +2273,78 @@ async function generateSceneImage(sceneId, isBatch = false) {
 
     const seed = Math.floor(Math.random() * 10000000);
     const cleanPrompt = scene.visualPrompt.replace(/[\r\n"']/g, ' ').replace(/\s+/g, ' ').trim();
-    const activeKey = (state.pollinationsKey && state.pollinationsKey.trim().length > 0)
-      ? state.pollinationsKey.trim()
-      : DEFAULT_POLLINATIONS_KEY;
-    const keyParam = activeKey ? `&key=${encodeURIComponent(activeKey)}&token=${encodeURIComponent(activeKey)}` : '';
 
-    const ts = Date.now();
-    // Primary modern endpoint: gen.pollinations.ai (Accepts enter.pollinations.ai keys without 402/503)
-    const genUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(cleanPrompt)}?model=flux&width=${width}&height=${height}&seed=${seed}&nologo=true&t=${ts}${keyParam}`;
-    // Fallback endpoint: image.pollinations.ai
-    const legacyUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?model=flux&width=${width}&height=${height}&seed=${seed}&nologo=true&t=${ts}${keyParam}`;
+    const keys = state.pollinationsKeys && state.pollinationsKeys.length > 0
+      ? state.pollinationsKeys
+      : [DEFAULT_POLLINATIONS_KEY];
+    const totalKeys = keys.length;
 
     let result = null;
-    try {
-      result = await loadImageWithFallback(genUrl, 30000);
-    } catch (errGen) {
-      console.warn('gen.pollinations.ai error, trying legacy fallback:', errGen);
-      result = await loadImageWithFallback(legacyUrl, 35000);
+    let lastError = null;
+
+    // Multi-Key Loop: Automatically failover to next key if any key runs out of quota!
+    for (let attempt = 0; attempt < totalKeys; attempt++) {
+      const activeKey = getActivePollinationsKey();
+      const keyParam = activeKey ? `&key=${encodeURIComponent(activeKey)}&token=${encodeURIComponent(activeKey)}` : '';
+      const ts = Date.now();
+
+      // Modern endpoint: gen.pollinations.ai (Accepts enter.pollinations.ai keys)
+      const genUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(cleanPrompt)}?model=flux&width=${width}&height=${height}&seed=${seed}&nologo=true&t=${ts}${keyParam}`;
+      const legacyUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?model=flux&width=${width}&height=${height}&seed=${seed}&nologo=true&t=${ts}${keyParam}`;
+
+      try {
+        try {
+          result = await loadImageWithFallback(genUrl, 28000);
+        } catch (errGen) {
+          console.warn(`[Key #${state.currentPollinationsKeyIndex + 1}] gen.pollinations.ai error, trying legacy fallback:`, errGen);
+          result = await loadImageWithFallback(legacyUrl, 32000);
+        }
+
+        // Check if rate-limit yellow banner was returned
+        if (result && result.img && isRateLimitBanner(result.img)) {
+          console.warn(`[Key #${state.currentPollinationsKeyIndex + 1}] Rate limit yellow banner detected.`);
+          throw new Error('POLLINATIONS_RATE_LIMIT');
+        }
+
+        // Image successfully loaded!
+        break;
+
+      } catch (err) {
+        lastError = err;
+        console.warn(`[Key #${state.currentPollinationsKeyIndex + 1} Failed]`, err.message);
+
+        // If another key is configured, auto-switch to it seamlessly!
+        if (totalKeys > 1 && attempt < totalKeys - 1) {
+          const prevKeyNum = state.currentPollinationsKeyIndex + 1;
+          rotateToNextPollinationsKey();
+          const nextKeyNum = state.currentPollinationsKeyIndex + 1;
+          showToast(`কী #${prevKeyNum} এর কোটা শেষ। কোনো অপেক্ষা ছাড়াই কী #${nextKeyNum} দিয়ে ছবি তৈরি হচ্ছে...`, 'info');
+          continue; // Instantly attempt with the next key!
+        } else {
+          break;
+        }
+      }
     }
 
-    // Check if the loaded image is the yellow rate-limit banner
-    if (result && result.img && isRateLimitBanner(result.img)) {
-      console.warn(`Scene #${scene.id}: Pollinations rate limit banner detected.`);
-      videoState.lastImageGeneratedTimestamp = Date.now();
+    if (!result) {
+      // If all keys exhausted their quota and rate-limit was hit:
+      if (lastError && (lastError.message === 'POLLINATIONS_RATE_LIMIT' || isRateLimitBanner(result?.img))) {
+        videoState.lastImageGeneratedTimestamp = Date.now();
+        showToast(`দৃশ্য #${scene.id}: সব কী-এর কোটা সাময়িক শেষ। ৪৫ সেকেন্ড পর স্বয়ংক্রিয়ভাবে তৈরি হবে...`, 'info');
+        await waitForImageCooldown(scene, isBatch);
 
-      // Initiate cooldown and auto-retry
-      showToast(`দৃশ্য #${scene.id}: Pollinations ফ্রি লিমিট পৌঁছেছে। ৪৫ সেকেন্ড অপেক্ষা করে ছবি তৈরি হচ্ছে...`, 'info');
-      await waitForImageCooldown(scene, isBatch);
+        const retryActiveKey = getActivePollinationsKey();
+        const retryKeyParam = retryActiveKey ? `&key=${encodeURIComponent(retryActiveKey)}&token=${encodeURIComponent(retryActiveKey)}` : '';
+        const retryTs = Date.now();
+        const retrySeed = Math.floor(Math.random() * 10000000);
+        const retryUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(cleanPrompt)}?model=flux&width=${width}&height=${height}&seed=${retrySeed}&nologo=true&t=${retryTs}${retryKeyParam}`;
+        result = await loadImageWithFallback(retryUrl, 35000);
 
-      const retryTs = Date.now();
-      const retrySeed = Math.floor(Math.random() * 10000000);
-      const retryUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(cleanPrompt)}?model=flux&width=${width}&height=${height}&seed=${retrySeed}&nologo=true&t=${retryTs}${keyParam}`;
-      result = await loadImageWithFallback(retryUrl, 35000);
-
-      if (result && result.img && isRateLimitBanner(result.img)) {
-        throw new Error('ফ্রি লিমিট অতিক্রম করেছে। অনুগ্রহ করে ৪৫ সেকেন্ড পর চেষ্টা করুন অথবা সেটিংস এ Pollinations Free Key চেক করুন।');
+        if (result && result.img && isRateLimitBanner(result.img)) {
+          throw new Error('সব কী-এর ফ্রি লিমিট শেষ হয়েছে। দয়া করে কিছুক্ষণ পর চেষ্টা করুন অথবা নতুন ফ্রি কী দিন।');
+        }
+      } else {
+        throw (lastError || new Error('ছবি তৈরি করা যায়নি। আবার চেষ্টা করুন।'));
       }
     }
 
