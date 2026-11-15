@@ -9,6 +9,17 @@ const state = {
   isGeneratingAll: false
 };
 
+// Video Studio State Management
+const videoState = {
+  scenes: [],
+  aspectRatio: '16:9',
+  visualStyle: 'cinematic',
+  splitMode: 'sentences',
+  unitsPerScene: 2,
+  voice: localStorage.getItem('gemini_voice') || 'Kore',
+  isGeneratingAll: false
+};
+
 // DOM Elements
 const elements = {
   apiKeyInput: document.getElementById('apiKeyInput'),
@@ -48,7 +59,34 @@ const elements = {
   tabBtnVideo: document.getElementById('tabBtnVideo'),
   tabContentAudio: document.getElementById('tabContentAudio'),
   tabContentVideo: document.getElementById('tabContentVideo'),
-  generateVideoBtn: document.getElementById('generateVideoBtn')
+
+  // Video Studio Elements
+  videoAspectRatio: document.getElementById('videoAspectRatio'),
+  videoVisualStyle: document.getElementById('videoVisualStyle'),
+  videoVoiceSelect: document.getElementById('videoVoiceSelect'),
+  videoUnitsPerScene: document.getElementById('videoUnitsPerScene'),
+  videoSplitMode: document.getElementById('videoSplitMode'),
+  videoScriptInput: document.getElementById('videoScriptInput'),
+  videoTextStats: document.getElementById('videoTextStats'),
+  videoLoadDemoBtn: document.getElementById('videoLoadDemoBtn'),
+  videoClearTextBtn: document.getElementById('videoClearTextBtn'),
+  videoSplitBtn: document.getElementById('videoSplitBtn'),
+  videoGenerateAllBothBtn: document.getElementById('videoGenerateAllBothBtn'),
+  videoGenerateAllBothText: document.getElementById('videoGenerateAllBothText'),
+  videoGenerateAllImageBtn: document.getElementById('videoGenerateAllImageBtn'),
+  videoGenerateAllAudioBtn: document.getElementById('videoGenerateAllAudioBtn'),
+  videoStopBtn: document.getElementById('videoStopBtn'),
+  videoDownloadZipBtn: document.getElementById('videoDownloadZipBtn'),
+  videoProgressBanner: document.getElementById('videoProgressBanner'),
+  videoProgressText: document.getElementById('videoProgressText'),
+  videoProgressPercent: document.getElementById('videoProgressPercent'),
+  videoProgressBar: document.getElementById('videoProgressBar'),
+  videoScenesContainer: document.getElementById('videoScenesContainer'),
+  videoSceneCount: document.getElementById('videoSceneCount'),
+  videoImageModal: document.getElementById('videoImageModal'),
+  videoModalImage: document.getElementById('videoModalImage'),
+  videoModalTitle: document.getElementById('videoModalTitle'),
+  videoModalDownloadBtn: document.getElementById('videoModalDownloadBtn')
 };
 
 // Initialize
@@ -92,6 +130,10 @@ function init() {
     updateTextStats();
     splitText();
   }
+
+  // Initialize Video Studio
+  renderVideoScenes();
+  updateVideoTextStats();
 
   // Re-render Lucide icons
   if (window.lucide) {
@@ -154,11 +196,8 @@ function setupEventListeners() {
     elements.tabBtnVideo.addEventListener('click', () => switchTab('video'));
   }
 
-  if (elements.generateVideoBtn) {
-    elements.generateVideoBtn.addEventListener('click', () => {
-      showToast('Text to Video ফিচারটি দ্রুতই উন্মুক্ত করা হচ্ছে! অডিও তৈরির জন্য Text to Audio ট্যাবে থাকুন।', 'info');
-    });
-  }
+  // Setup Video Studio events
+  setupVideoStudioEventListeners();
 
   // Toggle Settings Panel
   elements.toggleSettingsBtn.addEventListener('click', () => {
@@ -1331,13 +1370,742 @@ window.replaceWordInSafeEditor = function(oldWord, newWord) {
   }
 };
 
-// Global helper for video prompt preset insertion
-window.insertVideoPreset = function(presetText) {
-  const videoPromptInput = document.getElementById('videoPromptInput');
-  if (videoPromptInput) {
-    videoPromptInput.value = presetText;
-    videoPromptInput.focus();
-    showToast('আইডিয়া প্রম্পট যুক্ত করা হয়েছে!', 'info');
+// ==========================================
+// Video Studio (YouTube Scene Audio + Image)
+// ==========================================
+
+function setupVideoStudioEventListeners() {
+  if (elements.videoAspectRatio) {
+    elements.videoAspectRatio.addEventListener('change', (e) => {
+      videoState.aspectRatio = e.target.value;
+      renderVideoScenes();
+      showToast(`ভিডিও ফরম্যাট "${videoState.aspectRatio}" সেট করা হয়েছে।`, 'info');
+    });
+  }
+
+  if (elements.videoVisualStyle) {
+    elements.videoVisualStyle.addEventListener('change', (e) => {
+      videoState.visualStyle = e.target.value;
+      showToast(`আর্ট স্টাইল পরিবর্তন করা হয়েছে। নতুন ছবি তৈরিতে এটি প্রযোজ্য হবে।`, 'info');
+    });
+  }
+
+  if (elements.videoVoiceSelect) {
+    elements.videoVoiceSelect.value = videoState.voice;
+    elements.videoVoiceSelect.addEventListener('change', (e) => {
+      videoState.voice = e.target.value;
+      showToast(`ভিডিও ভয়েস "${videoState.voice}" নির্বাচিত।`, 'info');
+    });
+  }
+
+  if (elements.videoUnitsPerScene) {
+    elements.videoUnitsPerScene.addEventListener('change', (e) => {
+      videoState.unitsPerScene = parseInt(e.target.value) || 2;
+      splitVideoScript();
+    });
+  }
+
+  if (elements.videoSplitMode) {
+    elements.videoSplitMode.addEventListener('change', (e) => {
+      videoState.splitMode = e.target.value;
+      splitVideoScript();
+    });
+  }
+
+  let videoSplitDebounceTimer = null;
+  const triggerInstantVideoSplit = () => {
+    updateVideoTextStats();
+    clearTimeout(videoSplitDebounceTimer);
+    videoSplitDebounceTimer = setTimeout(() => {
+      splitVideoScript();
+    }, 350);
+  };
+
+  if (elements.videoScriptInput) {
+    elements.videoScriptInput.addEventListener('input', triggerInstantVideoSplit);
+    elements.videoScriptInput.addEventListener('change', triggerInstantVideoSplit);
+    elements.videoScriptInput.addEventListener('paste', () => setTimeout(triggerInstantVideoSplit, 50));
+  }
+
+  if (elements.videoLoadDemoBtn) {
+    elements.videoLoadDemoBtn.addEventListener('click', () => {
+      if (elements.videoScriptInput) {
+        elements.videoScriptInput.value = getVideoDemoText();
+        updateVideoTextStats();
+        splitVideoScript();
+        showToast('ইউটিউব ভিডিও ডেমো স্ক্রিপ্ট লোড করা হয়েছে!', 'success');
+      }
+    });
+  }
+
+  if (elements.videoClearTextBtn) {
+    elements.videoClearTextBtn.addEventListener('click', () => {
+      if (elements.videoScriptInput) {
+        elements.videoScriptInput.value = '';
+        videoState.scenes = [];
+        updateVideoTextStats();
+        renderVideoScenes();
+        showToast('স্ক্রিপ্ট ক্লিয়ার করা হয়েছে।', 'info');
+      }
+    });
+  }
+
+  if (elements.videoSplitBtn) {
+    elements.videoSplitBtn.addEventListener('click', () => {
+      splitVideoScript();
+      showToast('পুনরায় দৃশ্য ভাগ করা হয়েছে।', 'info');
+    });
+  }
+
+  if (elements.videoGenerateAllBothBtn) {
+    elements.videoGenerateAllBothBtn.addEventListener('click', () => generateAllVideoScenes('both'));
+  }
+
+  if (elements.videoGenerateAllImageBtn) {
+    elements.videoGenerateAllImageBtn.addEventListener('click', () => generateAllVideoScenes('image'));
+  }
+
+  if (elements.videoGenerateAllAudioBtn) {
+    elements.videoGenerateAllAudioBtn.addEventListener('click', () => generateAllVideoScenes('audio'));
+  }
+
+  if (elements.videoStopBtn) {
+    elements.videoStopBtn.addEventListener('click', handleStopVideoGeneration);
+  }
+
+  if (elements.videoDownloadZipBtn) {
+    elements.videoDownloadZipBtn.addEventListener('click', downloadVideoZip);
+  }
+}
+
+function getVideoDemoText() {
+  return `গভীর রাতে সুন্দরবনের এক শান্ত খাঁড়িতে বৃদ্ধ মাঝির কাঠের নৌকাটি ধীরে ধীরে শান্ত পানির ওপর দিয়ে চলছিল।
+চারপাশে ঘন কুয়াশার চাদর আর মাথার ওপরে রুপোলি চাঁদের মায়াবী আলো এক অপার্থিব রূপ তৈরি করেছে।
+হঠাৎ নদীর দূরের পাড় থেকে একটি বাঘের গম্ভীর গর্জন ভেসে এলো, যা নিস্তব্ধ বনকে কাঁপিয়ে তুলল।
+মাঝি আলতো করে বৈঠা টেনে নৌকার গতি বাড়ালেন, তার চোখে ছিল বহু বছরের অভিজ্ঞতার অটল সাহস।
+ধীরে ধীরে ভোরের প্রথম সোনালী সূর্যকিরণ বনের গাছের ফাঁক দিয়ে ছড়িয়ে নদীর জলকে উজ্জ্বল করে তুলল।`;
+}
+
+function updateVideoTextStats() {
+  if (!elements.videoTextStats || !elements.videoScriptInput) return;
+  const text = elements.videoScriptInput.value;
+  const chars = text.length;
+  const lines = text ? text.split('\n').filter(l => l.trim().length > 0).length : 0;
+  const scenes = videoState.scenes.length;
+  elements.videoTextStats.textContent = `${chars} অক্ষর | ${lines} লাইন | ${scenes} দৃশ্য`;
+}
+
+function splitVideoScript() {
+  const rawText = elements.videoScriptInput ? elements.videoScriptInput.value.trim() : '';
+  if (!rawText) {
+    videoState.scenes = [];
+    renderVideoScenes();
+    updateVideoTextStats();
+    return;
+  }
+
+  const mode = videoState.splitMode || 'sentences';
+  const unitsPerScene = Math.max(1, videoState.unitsPerScene || 2);
+  let units = [];
+
+  if (mode === 'sentences') {
+    const rawUnits = rawText.split(/([।?!.।\n]+)/);
+    for (let i = 0; i < rawUnits.length; i += 2) {
+      const sentence = (rawUnits[i] || '') + (rawUnits[i + 1] || '');
+      const trimmed = sentence.trim();
+      if (trimmed) units.push(trimmed);
+    }
+  } else {
+    units = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  }
+
+  if (units.length === 0) {
+    videoState.scenes = [];
+    renderVideoScenes();
+    updateVideoTextStats();
+    return;
+  }
+
+  const grouped = [];
+  for (let i = 0; i < units.length; i += unitsPerScene) {
+    const slice = units.slice(i, i + unitsPerScene);
+    grouped.push(slice.join(' '));
+  }
+
+  const oldScenes = videoState.scenes;
+  videoState.scenes = grouped.map((text, idx) => {
+    const existing = oldScenes.find(o => o.text === text);
+    if (existing) {
+      return { ...existing, id: idx + 1 };
+    }
+    return {
+      id: idx + 1,
+      text: text,
+      visualPrompt: '',
+      imageBlob: null,
+      imageUrl: '',
+      imageStatus: 'idle',
+      imageError: '',
+      audioBlob: null,
+      audioUrl: '',
+      audioStatus: 'idle',
+      audioError: ''
+    };
+  });
+
+  renderVideoScenes();
+  updateVideoTextStats();
+}
+
+function renderVideoScenes() {
+  if (!elements.videoScenesContainer) return;
+
+  if (elements.videoSceneCount) {
+    elements.videoSceneCount.textContent = videoState.scenes.length;
+  }
+
+  const hasCompletedWork = videoState.scenes.some(s => s.audioBlob || s.imageBlob);
+  if (elements.videoDownloadZipBtn) {
+    elements.videoDownloadZipBtn.disabled = !hasCompletedWork || videoState.isGeneratingAll;
+  }
+
+  if (videoState.scenes.length === 0) {
+    elements.videoScenesContainer.innerHTML = `
+      <div id="videoEmptyState" class="bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl p-12 text-center space-y-3">
+        <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+          <i data-lucide="clapperboard" class="w-6 h-6 text-indigo-400"></i>
+        </div>
+        <h4 class="text-sm font-medium text-slate-300">কোনো স্ক্রিপ্ট ইনপুট করা হয়নি</h4>
+        <p class="text-xs text-slate-500 max-w-sm mx-auto">উপরের বক্সে আপনার পুরো গল্প বা ইউটিউব স্ক্রিপ্ট পেস্ট করুন অথবা "ডেমো গল্প দেখুন" বাটনে ক্লিক করে পরীক্ষা করুন।</p>
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+    return;
+  }
+
+  const isPortrait = videoState.aspectRatio === '9:16';
+  const isSquare = videoState.aspectRatio === '1:1';
+  const aspectClass = isPortrait ? 'aspect-[9/16] max-w-[220px]' : (isSquare ? 'aspect-square max-w-[280px]' : 'aspect-video w-full');
+
+  elements.videoScenesContainer.innerHTML = videoState.scenes.map(scene => {
+    const pad = String(scene.id).padStart(2, '0');
+    return `
+      <div id="video-scene-${scene.id}" class="bg-slate-900 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-5 shadow-xl space-y-4 transition-all duration-200">
+        
+        <!-- Scene Header -->
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+          <div class="flex items-center gap-2.5">
+            <span class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 font-bold text-xs flex items-center justify-center">
+              #${pad}
+            </span>
+            <div>
+              <h4 class="text-xs font-bold text-white flex items-center gap-2">
+                দৃশ্য ${pad} (Scene ${pad})
+              </h4>
+            </div>
+          </div>
+
+          <!-- Status Badges -->
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-1">
+              <span class="text-[10px] text-slate-400">অডিও:</span>
+              ${renderVideoSceneBadge(scene.audioStatus, 'audio')}
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="text-[10px] text-slate-400">ছবি:</span>
+              ${renderVideoSceneBadge(scene.imageStatus, 'image')}
+            </div>
+          </div>
+        </div>
+
+        <!-- 2-Column Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          
+          <!-- Left Column (Script & Visual Prompt) -->
+          <div class="lg:col-span-7 space-y-3">
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <i data-lucide="file-text" class="w-3.5 h-3.5 text-indigo-400"></i>
+                  <span>এই দৃশ্যের টেক্সট (বাংলা):</span>
+                </label>
+                <span class="text-[10px] text-slate-400">${scene.text.length} অক্ষর</span>
+              </div>
+              <textarea onchange="updateVideoSceneText(${scene.id}, this.value)" rows="3" 
+                class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 text-xs text-slate-200 rounded-xl p-3 outline-none transition resize-y leading-relaxed">${escapeHtml(scene.text)}</textarea>
+            </div>
+
+            <!-- Visual Prompt Box (Collapsible / Editable) -->
+            <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="text-[11px] font-semibold text-indigo-300 flex items-center gap-1.5">
+                  <i data-lucide="sparkles" class="w-3 h-3 text-indigo-400"></i>
+                  <span>সিন প্রম্পট (AI Visual Description):</span>
+                </label>
+                <button type="button" onclick="regenerateScenePrompt(${scene.id})" class="text-[10px] text-teal-400 hover:text-teal-300 flex items-center gap-1 transition">
+                  <i data-lucide="refresh-cw" class="w-3 h-3"></i> প্রম্পট অটো-তৈরি
+                </button>
+              </div>
+              <input type="text" id="prompt-input-${scene.id}" value="${escapeHtml(scene.visualPrompt || '')}" 
+                placeholder="Gemini দিয়ে স্বয়ংক্রিয় সিনেমাটিক প্রম্পট তৈরি হবে অথবা নিজে লিখুন..."
+                onchange="updateVideoScenePrompt(${scene.id}, this.value)"
+                class="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 text-[11px] text-slate-300 rounded-lg px-2.5 py-1.5 outline-none font-sans">
+              <p class="text-[10px] text-slate-500">💡 ছবি জেনারেটের সময় এই প্রম্পটটিই ছবির নিখুঁত 8K মান নির্ধারণ করবে।</p>
+            </div>
+
+            <!-- Scene Action Buttons -->
+            <div class="flex flex-wrap items-center gap-2 pt-1">
+              <button type="button" onclick="generateSceneBoth(${scene.id})" class="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-teal-600 hover:from-indigo-500 hover:to-teal-500 text-white font-medium text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20">
+                <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
+                <span>ছবি ও অডিও একসাথে জেনারেট</span>
+              </button>
+              <button type="button" onclick="generateSceneImage(${scene.id})" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white text-xs rounded-xl border border-slate-700/80 transition flex items-center gap-1.5">
+                <i data-lucide="image" class="w-3.5 h-3.5 text-indigo-400"></i>
+                <span>${scene.imageBlob ? 'পুনরায় ছবি' : 'ছবি জেনারেট'}</span>
+              </button>
+              <button type="button" onclick="generateSceneAudio(${scene.id})" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-white text-xs rounded-xl border border-slate-700/80 transition flex items-center gap-1.5">
+                <i data-lucide="volume-2" class="w-3.5 h-3.5 text-teal-400"></i>
+                <span>${scene.audioBlob ? 'পুনরায় অডিও' : 'অডিও জেনারেট'}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Right Column (Media: Image & Audio Player) -->
+          <div class="lg:col-span-5 space-y-3 flex flex-col justify-between">
+            
+            <!-- Image Box -->
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-medium text-slate-300 flex items-center gap-1.5">
+                  <i data-lucide="image" class="w-3.5 h-3.5 text-indigo-400"></i>
+                  <span>সিনেমাটিক দৃশ্য ছবি (${videoState.aspectRatio})</span>
+                </span>
+                ${scene.imageBlob ? `
+                  <div class="flex items-center gap-2">
+                    <button type="button" onclick="openVideoImageModal('${scene.imageUrl}', 'দৃশ্য #${pad}', 'Scene_${pad}_image.jpg')" class="text-[11px] text-indigo-300 hover:text-indigo-200 flex items-center gap-0.5">
+                      <i data-lucide="maximize-2" class="w-3 h-3"></i> বড় করুন
+                    </button>
+                    <a href="${scene.imageUrl}" download="Scene_${pad}_image.jpg" class="text-[11px] text-teal-400 hover:underline flex items-center gap-0.5">
+                      <i data-lucide="download" class="w-3 h-3"></i> ডাউনলোড
+                    </a>
+                  </div>
+                ` : ''}
+              </div>
+
+              <!-- Image Display Frame -->
+              <div class="${aspectClass} bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex items-center justify-center relative mx-auto group">
+                ${scene.imageStatus === 'generating' ? `
+                  <div class="p-6 text-center space-y-2">
+                    <i data-lucide="loader-2" class="w-6 h-6 animate-spin text-indigo-400 mx-auto"></i>
+                    <p class="text-xs text-indigo-300 font-medium">FLUX এআই ছবি তৈরি করছে...</p>
+                    <p class="text-[10px] text-slate-500">সিনেমাটিক লাইটিং ও ডিটেইল যুক্ত হচ্ছে</p>
+                  </div>
+                ` : scene.imageBlob ? `
+                  <img src="${scene.imageUrl}" alt="Scene ${pad}" class="w-full h-full object-cover rounded-xl cursor-pointer hover:scale-105 transition-transform duration-300" 
+                    onclick="openVideoImageModal('${scene.imageUrl}', 'দৃশ্য #${pad}', 'Scene_${pad}_image.jpg')">
+                ` : scene.imageStatus === 'error' ? `
+                  <div class="p-4 text-center space-y-1 text-rose-400">
+                    <i data-lucide="alert-circle" class="w-5 h-5 mx-auto"></i>
+                    <p class="text-xs font-semibold">ছবি তৈরি ব্যর্থ</p>
+                    <p class="text-[10px] text-slate-400">${escapeHtml(scene.imageError || '')}</p>
+                    <button type="button" onclick="generateSceneImage(${scene.id})" class="text-[11px] text-indigo-400 underline mt-1">আবার চেষ্টা করুন</button>
+                  </div>
+                ` : `
+                  <div class="p-6 text-center space-y-2 text-slate-600">
+                    <i data-lucide="image" class="w-7 h-7 mx-auto stroke-1"></i>
+                    <p class="text-[11px] text-slate-400">ছবি এখনো তৈরি করা হয়নি</p>
+                    <button type="button" onclick="generateSceneImage(${scene.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-1 rounded-lg border border-slate-700 transition">
+                      ছবি জেনারেট
+                    </button>
+                  </div>
+                `}
+              </div>
+            </div>
+
+            <!-- Audio Player Box -->
+            <div class="space-y-1.5 pt-1">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-medium text-slate-300 flex items-center gap-1.5">
+                  <i data-lucide="headphones" class="w-3.5 h-3.5 text-teal-400"></i>
+                  <span>ভয়েসওভার অডিও (Gemini)</span>
+                </span>
+                ${scene.audioBlob ? `
+                  <a href="${scene.audioUrl}" download="Scene_${pad}_audio.wav" class="text-[11px] text-teal-400 hover:underline flex items-center gap-0.5">
+                    <i data-lucide="download" class="w-3 h-3"></i> ডাউনলোড
+                  </a>
+                ` : ''}
+              </div>
+
+              <div>
+                ${scene.audioStatus === 'generating' ? `
+                  <div class="h-10 bg-slate-950 border border-slate-800 rounded-xl px-3 flex items-center justify-center gap-2 text-xs text-teal-400">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                    <span>ভয়েস তৈরি হচ্ছে...</span>
+                  </div>
+                ` : scene.audioBlob ? `
+                  <audio controls src="${scene.audioUrl}" class="w-full h-9 rounded-lg"></audio>
+                ` : scene.audioStatus === 'error' ? `
+                  <div class="h-10 bg-slate-950 border border-rose-500/30 rounded-xl px-3 flex items-center justify-between text-xs text-rose-400">
+                    <span class="truncate">${escapeHtml(scene.audioError || 'অডিও ব্যর্থ')}</span>
+                    <button type="button" onclick="generateSceneAudio(${scene.id})" class="text-[11px] underline shrink-0 ml-2">পুনরায়</button>
+                  </div>
+                ` : `
+                  <div class="h-10 bg-slate-950 border border-slate-800 rounded-xl px-3 flex items-center justify-between text-xs text-slate-500">
+                    <span>অডিও এখনও তৈরি হয়নি</span>
+                    <button type="button" onclick="generateSceneAudio(${scene.id})" class="text-[11px] text-teal-400 hover:underline">
+                      অডিও বানান
+                    </button>
+                  </div>
+                `}
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+    `;
+  }).join('');
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function renderVideoSceneBadge(status) {
+  switch (status) {
+    case 'generating':
+      return `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
+          <i data-lucide="loader-2" class="w-2.5 h-2.5 animate-spin"></i> তৈরি হচ্ছে
+        </span>
+      `;
+    case 'ready':
+      return `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+          <i data-lucide="check" class="w-2.5 h-2.5"></i> প্রস্তুত
+        </span>
+      `;
+    case 'error':
+      return `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+          <i data-lucide="alert-circle" class="w-2.5 h-2.5"></i> ত্রুটি
+        </span>
+      `;
+    default:
+      return `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+          <i data-lucide="clock" class="w-2.5 h-2.5"></i> বাকি
+        </span>
+      `;
+  }
+}
+
+async function generateVisualPromptForScene(sceneText, style, aspectRatio) {
+  const styleGuides = {
+    'cinematic': 'Cinematic photorealistic 8k, dramatic cinematic lighting, shot on 35mm film, shallow depth of field, hyper-detailed textures, masterpiece',
+    'pixar': '3D Pixar and Disney animation style, vibrant vivid colors, expressive whimsical characters, soft volumetric lighting, detailed 3D render',
+    'documentary': 'National Geographic documentary photography, natural lighting, authentic textures, highly detailed, realistic atmosphere',
+    'fantasy': 'Epic dark fantasy concept art, mystical glowing atmosphere, intricate details, cinematic volumetric light',
+    'cyberpunk': 'Futuristic cyberpunk, glowing neon lights, rainy reflections, high-tech dystopian city, cinematic color grading'
+  };
+  const styleDesc = styleGuides[style] || styleGuides['cinematic'];
+  const ratioDesc = aspectRatio === '16:9' ? '16:9 landscape aspect ratio' : (aspectRatio === '9:16' ? '9:16 vertical portrait aspect ratio' : '1:1 square aspect ratio');
+
+  if (state.apiKey) {
+    try {
+      const keys = parseKeys(state.apiKey);
+      const activeKey = keys[0];
+      const systemPrompt = `You are an elite Hollywood visual director creating detailed image prompts for YouTube story videos.
+Convert this Bengali story excerpt into a vivid, descriptive English image prompt for an image generator (Flux/Stable Diffusion).
+Describe: main visual subject, facial expression/pose, setting, lighting, atmosphere, colors, and camera shot.
+Keep under 50 words. Must emphasize: ${styleDesc}, ${ratioDesc}, no text, no watermark, no border.
+Output ONLY the English prompt text.`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${activeKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `${systemPrompt}\n\nBengali Text: "${sceneText}"` }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 100 }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (text) {
+          return text.replace(/^["']|["']$/g, '').trim();
+        }
+      }
+    } catch (err) {
+      console.warn('Gemini visual prompt fallback:', err);
+    }
+  }
+
+  // Fallback direct visual prompt
+  return `A cinematic shot depicting: ${sceneText.slice(0, 140)}. ${styleDesc}, ${ratioDesc}, masterpiece, photorealistic, 8k, no watermark`;
+}
+
+async function generateSceneImage(sceneId) {
+  const scene = videoState.scenes.find(s => s.id === sceneId);
+  if (!scene) return;
+
+  scene.imageStatus = 'generating';
+  scene.imageError = '';
+  renderVideoScenes();
+
+  try {
+    if (!scene.visualPrompt) {
+      scene.visualPrompt = await generateVisualPromptForScene(scene.text, videoState.visualStyle, videoState.aspectRatio);
+      const inputEl = document.getElementById(`prompt-input-${scene.id}`);
+      if (inputEl) inputEl.value = scene.visualPrompt;
+    }
+
+    let width = 1280, height = 720;
+    if (videoState.aspectRatio === '9:16') {
+      width = 720;
+      height = 1280;
+    } else if (videoState.aspectRatio === '1:1') {
+      width = 1024;
+      height = 1024;
+    }
+
+    const seed = Math.floor(Math.random() * 1000000);
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(scene.visualPrompt)}?width=${width}&height=${height}&model=flux&nologo=true&seed=${seed}`;
+
+    const res = await fetch(imageUrl);
+    if (!res.ok) throw new Error('ইমেজ সার্ভার সাড়া দেয়নি।');
+
+    const blob = await res.blob();
+    if (scene.imageUrl) URL.revokeObjectURL(scene.imageUrl);
+    scene.imageBlob = blob;
+    scene.imageUrl = URL.createObjectURL(blob);
+    scene.imageStatus = 'ready';
+  } catch (err) {
+    console.error('Image gen error:', err);
+    scene.imageStatus = 'error';
+    scene.imageError = err.message || 'ছবি তৈরি করা যায়নি';
+  }
+
+  renderVideoScenes();
+}
+
+async function generateSceneAudio(sceneId) {
+  const scene = videoState.scenes.find(s => s.id === sceneId);
+  if (!scene) return;
+
+  scene.audioStatus = 'generating';
+  scene.audioError = '';
+  renderVideoScenes();
+
+  try {
+    const isFirebase = window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com');
+    const apiEndpoint = isFirebase 
+      ? 'https://gemini-audio-studio-seven.vercel.app/api/generate-audio' 
+      : '/api/generate-audio';
+
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey: state.apiKey,
+        apiKeys: parseKeys(state.apiKey),
+        text: scene.text,
+        voice: videoState.voice || state.voice,
+        model: state.model,
+        tone: state.voiceTone
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'অডিও তৈরি ব্যর্থ হয়েছে।');
+    }
+
+    const binaryStr = atob(data.audioBase64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      bytes[i] = binaryStr.charCodeAt(i);
+    }
+    const audioBlob = new Blob([bytes], { type: 'audio/wav' });
+    if (scene.audioUrl) URL.revokeObjectURL(scene.audioUrl);
+    scene.audioBlob = audioBlob;
+    scene.audioUrl = URL.createObjectURL(audioBlob);
+    scene.audioStatus = 'ready';
+  } catch (err) {
+    console.error('Audio gen error:', err);
+    scene.audioStatus = 'error';
+    scene.audioError = err.message || 'অডিও তৈরি করা যায়নি';
+  }
+
+  renderVideoScenes();
+}
+
+async function generateSceneBoth(sceneId) {
+  await Promise.all([
+    generateSceneAudio(sceneId),
+    generateSceneImage(sceneId)
+  ]);
+}
+
+async function generateAllVideoScenes(mode = 'both') {
+  if (videoState.scenes.length === 0) {
+    showToast('অনুগ্রহ করে প্রথমে স্ক্রিপ্ট দিয়ে সিন ভাগ করুন।', 'warning');
+    return;
+  }
+
+  videoState.isGeneratingAll = true;
+  updateVideoControlsUI();
+
+  const total = videoState.scenes.length;
+  for (let i = 0; i < total; i++) {
+    if (!videoState.isGeneratingAll) break;
+
+    const scene = videoState.scenes[i];
+    const pct = Math.round(((i + 1) / total) * 100);
+    
+    if (elements.videoProgressBanner) elements.videoProgressBanner.classList.remove('hidden');
+    if (elements.videoProgressPercent) elements.videoProgressPercent.textContent = `${pct}%`;
+    if (elements.videoProgressBar) elements.videoProgressBar.style.width = `${pct}%`;
+    if (elements.videoProgressText) {
+      elements.videoProgressText.innerHTML = `
+        <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
+        <span>দৃশ্য ${i + 1}/${total} তৈরি হচ্ছে...</span>
+      `;
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    const tasks = [];
+    if (mode === 'both' || mode === 'audio') {
+      if (!scene.audioBlob || scene.audioStatus === 'error') {
+        tasks.push(generateSceneAudio(scene.id));
+      }
+    }
+    if (mode === 'both' || mode === 'image') {
+      if (!scene.imageBlob || scene.imageStatus === 'error') {
+        tasks.push(generateSceneImage(scene.id));
+      }
+    }
+
+    if (tasks.length > 0) {
+      await Promise.all(tasks);
+    }
+  }
+
+  videoState.isGeneratingAll = false;
+  updateVideoControlsUI();
+  if (elements.videoProgressBanner) elements.videoProgressBanner.classList.add('hidden');
+  showToast('সবগুলো দৃশ্যের জেনারেশন সম্পন্ন হয়েছে!', 'success');
+}
+
+function handleStopVideoGeneration() {
+  videoState.isGeneratingAll = false;
+  updateVideoControlsUI();
+  if (elements.videoProgressBanner) elements.videoProgressBanner.classList.add('hidden');
+  showToast('জেনারেশন থামানো হয়েছে।', 'info');
+}
+
+function updateVideoControlsUI() {
+  const isRunning = videoState.isGeneratingAll;
+  if (elements.videoStopBtn) {
+    elements.videoStopBtn.classList.toggle('hidden', !isRunning);
+  }
+  if (elements.videoGenerateAllBothBtn) {
+    elements.videoGenerateAllBothBtn.disabled = isRunning;
+    elements.videoGenerateAllBothBtn.classList.toggle('opacity-50', isRunning);
+  }
+  if (elements.videoGenerateAllImageBtn) {
+    elements.videoGenerateAllImageBtn.disabled = isRunning;
+  }
+  if (elements.videoGenerateAllAudioBtn) {
+    elements.videoGenerateAllAudioBtn.disabled = isRunning;
+  }
+  if (elements.videoDownloadZipBtn) {
+    const hasWork = videoState.scenes.some(s => s.audioBlob || s.imageBlob);
+    elements.videoDownloadZipBtn.disabled = !hasWork || isRunning;
+  }
+}
+
+async function downloadVideoZip() {
+  if (!window.JSZip) {
+    showToast('ZIP লাইব্রেরি প্রস্তুত নয়।', 'error');
+    return;
+  }
+
+  const zip = new JSZip();
+  let count = 0;
+
+  videoState.scenes.forEach((scene, idx) => {
+    const pad = String(idx + 1).padStart(2, '0');
+    if (scene.audioBlob) {
+      zip.file(`Scene_${pad}_audio.wav`, scene.audioBlob);
+      count++;
+    }
+    if (scene.imageBlob) {
+      zip.file(`Scene_${pad}_image.jpg`, scene.imageBlob);
+      count++;
+    }
+    zip.file(`Scene_${pad}_script.txt`, scene.text);
+  });
+
+  if (count === 0) {
+    showToast('ডাউনলোড করার মত অডিও বা ছবি এখনও নেই।', 'warning');
+    return;
+  }
+
+  showToast('YouTube ভিডিও প্রজেক্টের ZIP তৈরি হচ্ছে...', 'info');
+  try {
+    const content = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(content);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `YouTube_Video_Project_${Date.now()}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('সব ছবি ও অডিও সফলভাবে ZIP ডাউনলোড হয়েছে!', 'success');
+  } catch (err) {
+    showToast('ZIP ডাউনলোড ব্যর্থ হয়েছে: ' + err.message, 'error');
+  }
+}
+
+// Global helpers for inline HTML event handlers
+window.generateSceneBoth = generateSceneBoth;
+window.generateSceneImage = generateSceneImage;
+window.generateSceneAudio = generateSceneAudio;
+
+window.updateVideoSceneText = function(id, newText) {
+  const scene = videoState.scenes.find(s => s.id === id);
+  if (scene) scene.text = newText;
+};
+
+window.updateVideoScenePrompt = function(id, newPrompt) {
+  const scene = videoState.scenes.find(s => s.id === id);
+  if (scene) scene.visualPrompt = newPrompt;
+};
+
+window.regenerateScenePrompt = async function(id) {
+  const scene = videoState.scenes.find(s => s.id === id);
+  if (scene) {
+    showToast('নতুন সিনেমাটিক প্রম্পট তৈরি হচ্ছে...', 'info');
+    scene.visualPrompt = await generateVisualPromptForScene(scene.text, videoState.visualStyle, videoState.aspectRatio);
+    const inputEl = document.getElementById(`prompt-input-${id}`);
+    if (inputEl) inputEl.value = scene.visualPrompt;
+    showToast('সিনেমাটিক প্রম্পট আপডেট হয়েছে!', 'success');
+  }
+};
+
+window.openVideoImageModal = function(imgSrc, title, downloadName) {
+  if (elements.videoImageModal && elements.videoModalImage) {
+    elements.videoModalImage.src = imgSrc;
+    if (elements.videoModalTitle) elements.videoModalTitle.textContent = title + ' (1080p Full Preview)';
+    if (elements.videoModalDownloadBtn) {
+      elements.videoModalDownloadBtn.href = imgSrc;
+      elements.videoModalDownloadBtn.download = downloadName || 'scene_image.jpg';
+    }
+    elements.videoImageModal.classList.remove('hidden');
+    if (window.lucide) window.lucide.createIcons();
   }
 };
 

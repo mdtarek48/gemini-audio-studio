@@ -441,176 +441,212 @@ AIzaSy... (২য় একাউন্ট)"
   </main>
   </div>
 
-  <!-- Tab 2: Text to Video Content -->
+  <!-- Tab 2: Text to Video Content (YouTube Video Studio: Text to Scene Audio + Image) -->
   <div id="tabContentVideo" class="flex-1 flex flex-col w-full hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
       
-      <!-- Video Studio Hero Banner -->
-      <div class="bg-gradient-to-b from-slate-900 via-slate-900 to-slate-900/95 border border-slate-800 rounded-2xl p-6 sm:p-7 shadow-xl space-y-4">
+      <!-- Video Studio Hero Header -->
+      <div class="bg-gradient-to-b from-slate-900 via-slate-900 to-slate-900/95 border border-slate-800 rounded-2xl p-6 sm:p-7 shadow-xl space-y-5">
         <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
           <div class="flex items-center gap-3.5">
             <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-indigo-600/25">
-              <i data-lucide="video" class="w-6 h-6"></i>
+              <i data-lucide="clapperboard" class="w-6 h-6"></i>
             </div>
             <div>
-              <div class="flex items-center gap-2">
-                <h2 class="text-lg font-bold text-white">Gemini Text to Video Studio</h2>
-                <span class="text-[11px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full font-medium">Google Veo &amp; Imagen Video</span>
-                <span class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-semibold">শীঘ্রই আসছে</span>
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-lg font-bold text-white">Gemini YouTube Video Studio</h2>
+                <span class="text-[11px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full font-medium">16:9 HD &amp; 9:16 Shorts</span>
+                <span class="text-[10px] bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded-full font-semibold">১০০% ফ্রি এআই</span>
+                <span class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-medium">No Watermark</span>
               </div>
-              <p class="text-xs text-slate-400 mt-0.5">টেক্সট বা দৃশ্য বর্ণনা দিন ➜ এআই দিয়ে সরাসরি সিনেমাটিক হাই-কোয়ালিটি ভিডিও জেনারেট করুন</p>
+              <p class="text-xs text-slate-400 mt-0.5">সম্পূর্ণ গল্প দিন ➜ প্রতি দৃশ্যে স্বয়ংক্রিয়ভাবে সিনেমাটিক ছবি ও মানুষের মত অডিও তৈরি করুন</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <span class="inline-flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-lg">
+            <span class="inline-flex items-center gap-1.5 text-xs text-teal-400 bg-teal-500/10 border border-teal-500/20 px-3 py-1.5 rounded-lg">
               <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
-              <span>Next-Gen Video AI</span>
+              <span>Scene-by-Scene Studio</span>
             </span>
           </div>
         </div>
 
-        <!-- Video Prompt Input Card -->
-        <div class="space-y-4 pt-2">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <label for="videoPromptInput" class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <i data-lucide="clapperboard" class="w-4 h-4 text-indigo-400"></i>
-              <span>ভিডিওর দৃশ্য বর্ণনা বা প্রম্পট লিখুন:</span>
+        <!-- Video Format & Visual Controls -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-slate-950/70 rounded-xl border border-slate-800/80">
+          <!-- Aspect Ratio -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <i data-lucide="crop" class="w-3.5 h-3.5 text-indigo-400"></i>
+              <span>ভিডিও ফরম্যাট (Ratio):</span>
             </label>
-            <span class="text-[11px] text-slate-400">সিনেমাটিক, বাস্তবসম্মত ও নিখুঁত ভিডিও প্রম্পট</span>
+            <select id="videoAspectRatio" class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
+              <option value="16:9" selected>16:9 (YouTube ল্যান্ডস্কেপ 1280×720)</option>
+              <option value="9:16">9:16 (YouTube Shorts / Reels 720×1280)</option>
+              <option value="1:1">1:1 (স্কয়ার - সোশ্যাল পোস্ট 1024×1024)</option>
+            </select>
           </div>
 
-          <!-- Prompt Preset Tags -->
-          <div class="flex flex-wrap items-center gap-2 text-xs bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
-            <span class="text-indigo-400 font-medium text-xs flex items-center gap-1.5 shrink-0">
-              <i data-lucide="palette" class="w-4 h-4"></i>
-              <span>আইডিয়া প্রম্পট:</span>
+          <!-- Art Style -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <i data-lucide="palette" class="w-3.5 h-3.5 text-indigo-400"></i>
+              <span>ছবির আর্ট স্টাইল:</span>
+            </label>
+            <select id="videoVisualStyle" class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
+              <option value="cinematic" selected>Cinematic Photorealistic (বাস্তবসম্মত সিনেমাটিক 8K)</option>
+              <option value="pixar">3D Animation / Pixar (৩ডি এনিমেশন কার্টুন)</option>
+              <option value="documentary">Historical Documentary (ঐতিহাসিক ও তথ্যচিত্র)</option>
+              <option value="fantasy">Dark Fantasy / Myth (কাল্পনিক রূপকথা ও ড্রামাটিক)</option>
+              <option value="cyberpunk">Cyberpunk / Sci-Fi (সাই-ফাই ও নিয়ন লাইট)</option>
+            </select>
+          </div>
+
+          <!-- Voice Selection -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <i data-lucide="mic" class="w-3.5 h-3.5 text-teal-400"></i>
+              <span>ভিডিও ভয়েস (কণ্ঠ):</span>
+            </label>
+            <select id="videoVoiceSelect" class="w-full bg-slate-900 border border-slate-700 focus:border-teal-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
+              <option value="Kore" selected>Kore (শান্ত ও মিষ্টি নারী কণ্ঠ)</option>
+              <option value="Puck">Puck (স্পষ্ট ও প্রাণবন্ত পুরুষ কণ্ঠ)</option>
+              <option value="Aoede">Aoede (উষ্ণ ও স্পষ্ট নারী কণ্ঠ)</option>
+              <option value="Charon">Charon (গম্ভীর ও প্রামাণ্য পুরুষ কণ্ঠ)</option>
+              <option value="Fenrir">Fenrir (শক্তিশালী পুরুষ কণ্ঠ)</option>
+            </select>
+          </div>
+
+          <!-- Split Rule -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+              <span class="flex items-center gap-1.5">
+                <i data-lucide="scissors" class="w-3.5 h-3.5 text-amber-400"></i>
+                <span>প্রতি দৃশ্যে বাক্যের সংখ্যা:</span>
+              </span>
+            </label>
+            <div class="flex items-center gap-2">
+              <input type="number" id="videoUnitsPerScene" min="1" max="20" value="2" 
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 font-bold text-teal-400 focus:border-teal-500 outline-none text-xs">
+              <select id="videoSplitMode" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-2.5 py-2 outline-none focus:border-teal-500">
+                <option value="sentences" selected>বাক্য</option>
+                <option value="lines">প্যারাগ্রাফ</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Script Input Section -->
+        <div class="space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <i data-lucide="file-text" class="w-4 h-4 text-indigo-400"></i>
+              <label for="videoScriptInput" class="text-xs font-semibold text-white">আপনার পুরো গল্প বা ইউটিউব স্ক্রিপ্ট দিন:</label>
+              <span id="videoTextStats" class="text-[11px] text-slate-400 bg-slate-950 px-2.5 py-0.5 rounded-full border border-slate-800">০ অক্ষর | ০ লাইন | ০ দৃশ্য</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="videoLoadDemoBtn" type="button" class="text-xs text-indigo-300 hover:text-indigo-200 hover:underline flex items-center gap-1">
+                <i data-lucide="wand-2" class="w-3.5 h-3.5 text-indigo-400"></i> ডেমো গল্প দেখুন
+              </button>
+              <button id="videoClearTextBtn" type="button" class="text-xs text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> ক্লিয়ার করুন
+              </button>
+            </div>
+          </div>
+
+          <textarea id="videoScriptInput" rows="6" placeholder="এখানে আপনার ইউটিউব ভিডিওর সম্পূর্ণ গল্প বা স্ক্রিপ্ট পেস্ট করুন... টেক্সট দেওয়ার সাথে সাথে তা স্বয়ংক্রিয়ভাবে আলাদা আলাদা দৃশ্যে ভাগ হয়ে নিচের বক্সে তৈরি হয়ে যাবে।" 
+            class="w-full bg-slate-950/80 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl p-4 text-xs sm:text-sm text-slate-100 placeholder-slate-500 outline-none transition resize-y leading-relaxed font-normal"></textarea>
+        </div>
+
+        <!-- Master Action Controls -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/80">
+          <div class="flex flex-wrap items-center gap-2.5">
+            <button id="videoSplitBtn" type="button" class="bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5 shadow-sm">
+              <i data-lucide="scissors" class="w-4 h-4 text-teal-400"></i>
+              <span>পুনরায় সিন ভাগ করুন</span>
+            </button>
+            <button id="videoGenerateAllBothBtn" type="button" class="bg-gradient-to-r from-indigo-600 via-purple-600 to-teal-600 hover:from-indigo-500 hover:to-teal-500 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-indigo-600/25">
+              <i data-lucide="play-circle" class="w-4 h-4"></i>
+              <span id="videoGenerateAllBothText">🎬 সব ছবি ও অডিও একসাথে জেনারেট</span>
+            </button>
+            <button id="videoGenerateAllImageBtn" type="button" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white font-medium text-xs px-3 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+              <i data-lucide="image" class="w-4 h-4 text-indigo-400"></i>
+              <span>শুধু সব ছবি</span>
+            </button>
+            <button id="videoGenerateAllAudioBtn" type="button" class="bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-white font-medium text-xs px-3 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+              <i data-lucide="volume-2" class="w-4 h-4 text-teal-400"></i>
+              <span>শুধু সব অডিও</span>
+            </button>
+            <button id="videoStopBtn" type="button" class="hidden bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-rose-600/20 animate-pulse">
+              <i data-lucide="square" class="w-3.5 h-3.5 fill-current"></i>
+              <span>জেনারেশন থামান</span>
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button id="videoDownloadZipBtn" type="button" disabled class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs px-4 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+              <i data-lucide="archive" class="w-4 h-4 text-indigo-400"></i>
+              <span>সব ছবি ও অডিও ZIP ডাউনলোড</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Progress Banner -->
+        <div id="videoProgressBanner" class="hidden bg-slate-950 border border-indigo-500/30 rounded-xl p-3.5 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span id="videoProgressText" class="text-indigo-300 font-medium flex items-center gap-2">
+              <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
+              <span>দৃশ্য জেনারেট হচ্ছে...</span>
             </span>
-            <div class="flex flex-wrap items-center gap-1.5">
-              <button type="button" onclick="insertVideoPreset('A breathtaking drone shot flying over misty emerald mountains at sunrise, 4k ultra-detailed, cinematic lighting')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-indigo-500/20 text-slate-300 hover:text-indigo-300 border border-slate-700 hover:border-indigo-500/40 transition text-[11px] flex items-center gap-1">
-                <span>🏔️ পাহাড়ি ড্রোন শট</span>
-              </button>
-              <button type="button" onclick="insertVideoPreset('A futuristic cyberpunk city in 2099 with glowing neon holograms, flying cars, and rain reflections, cinematic 8k')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-indigo-500/20 text-slate-300 hover:text-indigo-300 border border-slate-700 hover:border-indigo-500/40 transition text-[11px] flex items-center gap-1">
-                <span>🏙️ সাইবারপাঙ্ক সিটি</span>
-              </button>
-              <button type="button" onclick="insertVideoPreset('An elderly fisherman gently rowing a wooden boat on a golden river during sunset, photorealistic, warm lighting')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-indigo-500/20 text-slate-300 hover:text-indigo-300 border border-slate-700 hover:border-indigo-500/40 transition text-[11px] flex items-center gap-1">
-                <span>🌅 সূর্যাস্তের নদী ও নৌকা</span>
-              </button>
-              <button type="button" onclick="insertVideoPreset('A charming 3D animated cute baby dragon playing with a glowing crystal in an enchanted magical forest, Pixar style')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-indigo-500/20 text-slate-300 hover:text-indigo-300 border border-slate-700 hover:border-indigo-500/40 transition text-[11px] flex items-center gap-1">
-                <span>✨ ৩ডি এনিমেশন ড্রাগন</span>
-              </button>
-            </div>
+            <span id="videoProgressPercent" class="text-teal-400 font-bold">০%</span>
           </div>
-
-          <textarea id="videoPromptInput" rows="5" placeholder="এখানে আপনার ভিডিওর দৃশ্য বিস্তারিত লিখুন... যেমন: একজন বৃদ্ধ মাঝি সূর্যাস্তের সময় শান্ত নদীতে নৌকা বাইছেন, সিনেমাটিক লাইটিং, ড্রোন শট, 4k রেজোলিউশন..." 
-            class="w-full bg-slate-950/70 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl p-4 text-sm text-slate-100 placeholder-slate-500 outline-none transition resize-y leading-relaxed font-normal"></textarea>
-
-          <!-- Video Settings Controls -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-slate-950/60 rounded-xl border border-slate-800/80">
-            <!-- Aspect Ratio -->
-            <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <i data-lucide="crop" class="w-3.5 h-3.5 text-indigo-400"></i>
-                <span>আসপেক্ট রেশিও</span>
-              </label>
-              <select id="videoAspectRatio" class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
-                <option value="16:9" selected>16:9 (Landscape - YouTube)</option>
-                <option value="9:16">9:16 (Portrait - Shorts / Reels)</option>
-                <option value="1:1">1:1 (Square - Social Post)</option>
-              </select>
-            </div>
-
-            <!-- Resolution -->
-            <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <i data-lucide="monitor" class="w-3.5 h-3.5 text-indigo-400"></i>
-                <span>রেজোলিউশন</span>
-              </label>
-              <select id="videoResolution" class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
-                <option value="1080p" selected>1080p Full HD (প্রস্তাবিত)</option>
-                <option value="720p">720p HD (দ্রুত জেনারেশন)</option>
-                <option value="4k">4K Ultra HD (আল্ট্রা ক্রিস্প)</option>
-              </select>
-            </div>
-
-            <!-- Duration -->
-            <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <i data-lucide="clock" class="w-3.5 h-3.5 text-indigo-400"></i>
-                <span>ভিডিও সময়কাল</span>
-              </label>
-              <select id="videoDuration" class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
-                <option value="5s" selected>৫ সেকেন্ড (সিনেমাটিক শট)</option>
-                <option value="10s">১০ সেকেন্ড (স্ট্যান্ডার্ড)</option>
-                <option value="15s">১৫ সেকেন্ড (লং সিন)</option>
-              </select>
-            </div>
-
-            <!-- Camera Motion -->
-            <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <i data-lucide="camera" class="w-3.5 h-3.5 text-indigo-400"></i>
-                <span>ক্যামেরা মোশন</span>
-              </label>
-              <select id="videoCameraMotion" class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
-                <option value="pan_right" selected>Pan Right / Left (স্মুথ প্যানিং)</option>
-                <option value="zoom_in">Slow Zoom In (ড্রামাটিক জুম)</option>
-                <option value="drone">Drone Flythrough (ড্রোন শট)</option>
-                <option value="static">Static (স্থির ক্যামেরা)</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Video Generation Action Bar -->
-          <div class="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-slate-800/60">
-            <div class="flex items-center gap-2 text-xs text-slate-400">
-              <i data-lucide="info" class="w-4 h-4 text-indigo-400"></i>
-              <span>Google Veo মডেলের মাধ্যমে সর্বোচ্চ গুণগত মানের ভিডিও তৈরি হবে।</span>
-            </div>
-            <div class="flex items-center gap-2.5">
-              <button id="generateVideoBtn" class="bg-gradient-to-r from-indigo-600 via-purple-600 to-teal-600 hover:from-indigo-500 hover:to-teal-500 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-indigo-600/20">
-                <i data-lucide="sparkles" class="w-4 h-4"></i>
-                <span>ভিডিও জেনারেট করুন</span>
-              </button>
-            </div>
+          <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+            <div id="videoProgressBar" class="bg-gradient-to-r from-indigo-500 via-purple-500 to-teal-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
           </div>
         </div>
       </div>
 
-      <!-- Feature Highlight Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-2 hover:border-slate-700 transition">
-          <div class="w-9 h-9 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
-            <i data-lucide="film" class="w-5 h-5"></i>
-          </div>
-          <h4 class="text-sm font-semibold text-white">Google Veo &amp; Imagen</h4>
-          <p class="text-xs text-slate-400 leading-relaxed">সর্বাধুনিক ভিডিও এআই মডেল দিয়ে নিখুঁত ফিজিক্স ও সিনেমাটিক লাইটিং নিশ্চিত হবে।</p>
+      <!-- Scenes Grid / Cards Container -->
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <i data-lucide="film" class="w-4 h-4 text-indigo-400"></i>
+            ভাগ করা দৃশ্যসমূহ (<span id="videoSceneCount">০</span> টি দৃশ্য)
+          </h3>
+          <p class="text-xs text-slate-400">প্রতিটি দৃশ্যে টেক্সট, সিনেমাটিক ইমেজ ও ভয়েসওভার থাকবে</p>
         </div>
 
-        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-2 hover:border-slate-700 transition">
-          <div class="w-9 h-9 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center">
-            <i data-lucide="layers" class="w-5 h-5"></i>
+        <!-- Dynamic Scene Cards Injected Here -->
+        <div id="videoScenesContainer" class="space-y-4">
+          <!-- Empty State -->
+          <div id="videoEmptyState" class="bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl p-12 text-center space-y-3">
+            <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+              <i data-lucide="clapperboard" class="w-6 h-6 text-indigo-400"></i>
+            </div>
+            <h4 class="text-sm font-medium text-slate-300">কোনো স্ক্রিপ্ট ইনপুট করা হয়নি</h4>
+            <p class="text-xs text-slate-500 max-w-sm mx-auto">উপরের বক্সে আপনার পুরো গল্প বা ইউটিউব স্ক্রিপ্ট পেস্ট করুন অথবা "ডেমো গল্প দেখুন" বাটনে ক্লিক করে পরীক্ষা করুন।</p>
           </div>
-          <h4 class="text-sm font-semibold text-white">সিন বাই সিন স্টোরি</h4>
-          <p class="text-xs text-slate-400 leading-relaxed">সম্পূর্ণ স্ক্রিপ্ট দিলে স্বয়ংক্রিয়ভাবে আলাদা দৃশ্যে ভাগ করে পুরো ভিডিও তৈরি করা যাবে।</p>
-        </div>
-
-        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-2 hover:border-slate-700 transition">
-          <div class="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
-            <i data-lucide="mic" class="w-5 h-5"></i>
-          </div>
-          <h4 class="text-sm font-semibold text-white">অডিও অটো-সিঙ্ক</h4>
-          <p class="text-xs text-slate-400 leading-relaxed">Text to Audio ট্যাবের তৈরি ভয়েস ট্র্যাকের সাথে সরাসরি সিন ও ব্যাকগ্রাউন্ড সিঙ্কিং।</p>
-        </div>
-
-        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-2 hover:border-slate-700 transition">
-          <div class="w-9 h-9 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center">
-            <i data-lucide="download" class="w-5 h-5"></i>
-          </div>
-          <h4 class="text-sm font-semibold text-white">ফুল এইচডি ডাউনলোড</h4>
-          <p class="text-xs text-slate-400 leading-relaxed">কোনো ওয়াটারমার্ক ছাড়াই সরাসরি 1080p এবং 4k MP4 ফরম্যাটে ভিডিও ডাউনলোড।</p>
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Image Lightbox Modal -->
+  <div id="videoImageModal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="relative max-w-5xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+      <div class="flex items-center justify-between p-3.5 bg-slate-950 border-b border-slate-800">
+        <h4 id="videoModalTitle" class="text-xs font-semibold text-slate-200">দৃশ্য ইমেজ প্রিভিউ (Full HD)</h4>
+        <div class="flex items-center gap-2">
+          <a id="videoModalDownloadBtn" href="#" download="scene_image.jpg" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> ডাউনলোড
+          </a>
+          <button onclick="document.getElementById('videoImageModal').classList.add('hidden')" class="p-1 text-slate-400 hover:text-white">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+      <div class="p-4 flex items-center justify-center overflow-auto max-h-[80vh]">
+        <img id="videoModalImage" src="" alt="Full Preview" class="max-w-full max-h-[75vh] object-contain rounded-lg shadow-lg">
+      </div>
     </div>
   </div>
 
