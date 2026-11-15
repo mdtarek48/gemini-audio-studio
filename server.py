@@ -80,6 +80,33 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=PUBLIC_DIR, **kwargs)
 
+    def do_GET(self):
+        if self.path.startswith("/api/proxy-image"):
+            self.handle_proxy_image()
+        else:
+            super().do_GET()
+
+    def handle_proxy_image(self):
+        query = urllib.parse.urlparse(self.path).query
+        params = urllib.parse.parse_qs(query)
+        target_url = params.get("url", [""])[0]
+        if not target_url:
+            self.send_error(400, "Missing url parameter")
+            return
+        try:
+            req = urllib.request.Request(target_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                content_type = resp.headers.get("Content-Type", "image/jpeg")
+                data = resp.read()
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+        except Exception as e:
+            self.send_error(500, f"Proxy error: {e}")
+
     def do_POST(self):
         if self.path == "/api/generate-audio":
             self.handle_generate_audio()

@@ -6,6 +6,14 @@
       "destination": "/api/generate-audio.js"
     },
     {
+      "source": "/api/proxy-image",
+      "destination": "/api/proxy-image.js"
+    },
+    {
+      "source": "/api/check-policy",
+      "destination": "/api/check-policy.js"
+    },
+    {
       "source": "/",
       "destination": "/public/index.html"
     },

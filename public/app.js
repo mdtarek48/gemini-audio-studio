@@ -1,6 +1,7 @@
 // State Management
 const state = {
   apiKey: localStorage.getItem('gemini_api_key') || '',
+  pollinationsKey: localStorage.getItem('pollinations_api_key') || '',
   voice: localStorage.getItem('gemini_voice') || 'Kore',
   voiceTone: localStorage.getItem('gemini_voice_tone') || 'Bright, sunny, welcoming morning greeting with a subtle vocal smile and crisp pacing',
   model: localStorage.getItem('gemini_model') || 'gemini-3.8-flash-tts',
@@ -17,7 +18,8 @@ const videoState = {
   splitMode: 'sentences',
   unitsPerScene: 2,
   voice: localStorage.getItem('gemini_voice') || 'Kore',
-  isGeneratingAll: false
+  isGeneratingAll: false,
+  lastImageGeneratedTimestamp: 0
 };
 
 // DOM Elements
@@ -86,7 +88,12 @@ const elements = {
   videoImageModal: document.getElementById('videoImageModal'),
   videoModalImage: document.getElementById('videoModalImage'),
   videoModalTitle: document.getElementById('videoModalTitle'),
-  videoModalDownloadBtn: document.getElementById('videoModalDownloadBtn')
+  videoModalDownloadBtn: document.getElementById('videoModalDownloadBtn'),
+
+  // Pollinations API Key Elements
+  pollinationsKeyInput: document.getElementById('pollinationsKeyInput'),
+  savePollinationsKeyBtn: document.getElementById('savePollinationsKeyBtn'),
+  pollinationsKeyBadge: document.getElementById('pollinationsKeyBadge')
 };
 
 // Initialize
@@ -104,6 +111,12 @@ function init() {
   } else {
     updateApiKeyStatus(false);
   }
+
+  // Load saved Pollinations Key
+  if (elements.pollinationsKeyInput) {
+    elements.pollinationsKeyInput.value = state.pollinationsKey || '';
+  }
+  updatePollinationsKeyStatus(!!state.pollinationsKey);
 
   elements.voiceSelect.value = state.voice;
   elements.modelInput.value = state.model;
@@ -162,6 +175,17 @@ function updateApiKeyStatus(hasKey) {
   }
 }
 
+function updatePollinationsKeyStatus(hasKey) {
+  if (!elements.pollinationsKeyBadge) return;
+  if (hasKey) {
+    elements.pollinationsKeyBadge.textContent = 'সক্রিয় (আনলিমিটেড স্পিড 🟢)';
+    elements.pollinationsKeyBadge.className = 'text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20';
+  } else {
+    elements.pollinationsKeyBadge.textContent = 'ফ্রি টিয়ার (৪৫ সে. কুলডাউন)';
+    elements.pollinationsKeyBadge.className = 'text-[11px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20';
+  }
+}
+
 function setupEventListeners() {
   // Tab Navigation (Text to Audio vs Text to Video)
   function switchTab(tab) {
@@ -201,11 +225,6 @@ function setupEventListeners() {
 
   // Toggle Settings Panel
   elements.toggleSettingsBtn.addEventListener('click', () => {
-    if (elements.tabContentAudio && elements.tabContentAudio.classList.contains('hidden')) {
-      switchTab('audio');
-      elements.settingsPanel.classList.remove('hidden');
-      return;
-    }
     elements.settingsPanel.classList.toggle('hidden');
   });
 
@@ -222,6 +241,17 @@ function setupEventListeners() {
     updateApiKeyStatus(true);
     showToast(`${keys.length}টি API Key সংরক্ষিত হয়েছে! একটার কোটা শেষ হলে অন্যটা স্বয়ংক্রিয়ভাবে কাজ করবে।`, 'success');
   });
+
+  // Save Pollinations API Key
+  if (elements.savePollinationsKeyBtn) {
+    elements.savePollinationsKeyBtn.addEventListener('click', () => {
+      const key = elements.pollinationsKeyInput ? elements.pollinationsKeyInput.value.trim() : '';
+      state.pollinationsKey = key;
+      localStorage.setItem('pollinations_api_key', key);
+      updatePollinationsKeyStatus(!!key);
+      showToast(key ? 'Pollinations API Key সংরক্ষিত হয়েছে! এখন কোনো অপেক্ষা ছাড়াই ছবি তৈরি হবে।' : 'Pollinations Key ক্লিয়ার করা হয়েছে।', 'success');
+    });
+  }
 
   if (elements.autoPlayCheckbox) {
     elements.autoPlayCheckbox.checked = state.autoPlay;
@@ -1680,27 +1710,44 @@ function renderVideoScenes() {
                   <i data-lucide="image" class="w-3.5 h-3.5 text-indigo-400"></i>
                   <span>সিনেমাটিক দৃশ্য ছবি (${videoState.aspectRatio})</span>
                 </span>
-                ${scene.imageBlob ? `
+                ${scene.imageUrl ? `
                   <div class="flex items-center gap-2">
                     <button type="button" onclick="openVideoImageModal('${scene.imageUrl}', 'দৃশ্য #${pad}', 'Scene_${pad}_image.jpg')" class="text-[11px] text-indigo-300 hover:text-indigo-200 flex items-center gap-0.5">
                       <i data-lucide="maximize-2" class="w-3 h-3"></i> বড় করুন
                     </button>
-                    <a href="${scene.imageUrl}" download="Scene_${pad}_image.jpg" class="text-[11px] text-teal-400 hover:underline flex items-center gap-0.5">
+                    <button type="button" onclick="downloadSceneImage(${scene.id})" class="text-[11px] text-teal-400 hover:underline flex items-center gap-0.5">
                       <i data-lucide="download" class="w-3 h-3"></i> ডাউনলোড
-                    </a>
+                    </button>
                   </div>
                 ` : ''}
               </div>
 
               <!-- Image Display Frame -->
               <div class="${aspectClass} bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex items-center justify-center relative mx-auto group">
-                ${scene.imageStatus === 'generating' ? `
+                ${scene.imageStatus === 'cooldown' ? `
+                  <div class="p-5 text-center space-y-2.5">
+                    <div class="relative w-12 h-12 mx-auto flex items-center justify-center">
+                      <div class="absolute inset-0 rounded-full border-2 border-amber-500/30 animate-ping"></div>
+                      <div class="w-12 h-12 rounded-full border-2 border-amber-500/80 bg-amber-500/10 flex items-center justify-center text-amber-400 font-bold text-sm tracking-wider font-mono" id="cooldown-timer-${scene.id}">
+                        ${scene.cooldownSeconds || 45}s
+                      </div>
+                    </div>
+                    <div class="space-y-1">
+                      <p class="text-xs text-amber-300 font-semibold flex items-center justify-center gap-1.5">
+                        <i data-lucide="timer" class="w-3.5 h-3.5 animate-pulse"></i>
+                        <span>ফ্রি লিমিট কুলডাউন চলছে</span>
+                      </p>
+                      <p class="text-[10px] text-slate-400">৪৫ সেকেন্ড পর স্বয়ংক্রিয়ভাবে ছবি তৈরি হবে</p>
+                      <p class="text-[9px] text-slate-500">দেরি না করে সাথে সাথে বানাতে <a href="https://enter.pollinations.ai" target="_blank" class="text-indigo-400 underline font-medium">Free Key</a> দিন</p>
+                    </div>
+                  </div>
+                ` : scene.imageStatus === 'generating' ? `
                   <div class="p-6 text-center space-y-2">
                     <i data-lucide="loader-2" class="w-6 h-6 animate-spin text-indigo-400 mx-auto"></i>
-                    <p class="text-xs text-indigo-300 font-medium">FLUX এআই ছবি তৈরি করছে...</p>
-                    <p class="text-[10px] text-slate-500">সিনেমাটিক লাইটিং ও ডিটেইল যুক্ত হচ্ছে</p>
+                    <p class="text-xs text-indigo-300 font-medium">এআই ছবি তৈরি করছে...</p>
+                    <p class="text-[10px] text-slate-500">সিনেমাটিক লাইটিং ও 8K ডিটেইল যুক্ত হচ্ছে</p>
                   </div>
-                ` : scene.imageBlob ? `
+                ` : scene.imageUrl ? `
                   <img src="${scene.imageUrl}" alt="Scene ${pad}" class="w-full h-full object-cover rounded-xl cursor-pointer hover:scale-105 transition-transform duration-300" 
                     onclick="openVideoImageModal('${scene.imageUrl}', 'দৃশ্য #${pad}', 'Scene_${pad}_image.jpg')">
                 ` : scene.imageStatus === 'error' ? `
@@ -1773,6 +1820,12 @@ function renderVideoScenes() {
 
 function renderVideoSceneBadge(status) {
   switch (status) {
+    case 'cooldown':
+      return `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+          <i data-lucide="timer" class="w-2.5 h-2.5 animate-pulse"></i> কুলডাউন
+        </span>
+      `;
     case 'generating':
       return `
         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
@@ -1800,6 +1853,75 @@ function renderVideoSceneBadge(status) {
   }
 }
 
+function translateBengaliSceneToEnglish(text, styleDesc = '', ratioDesc = '') {
+  const t = text.toLowerCase();
+  const elements = [];
+
+  // Characters / Subjects
+  if (t.includes('মাঝি') || t.includes('জেলে')) {
+    if (t.includes('বৃদ্ধ')) elements.push('an elderly weathered South Asian fisherman');
+    else elements.push('a traditional South Asian fisherman');
+  } else if (t.includes('বাঘ') || t.includes('রয়েল বেঙ্গল') || t.includes('টাইগার')) {
+    elements.push('a magnificent Royal Bengal tiger with glowing amber eyes');
+  } else if (t.includes('রাজা')) {
+    elements.push('a regal Indian emperor dressed in ornate royal silk robes');
+  } else if (t.includes('শিশু') || t.includes('বাচ্চা') || t.includes('ছেলে') || t.includes('মেয়ে')) {
+    elements.push('an expressive innocent child');
+  } else if (t.includes('নৌকা') || t.includes('নৌকায়')) {
+    elements.push('a rustic traditional handcrafted wooden boat');
+  } else {
+    elements.push('a captivating dramatic cinematic scene');
+  }
+
+  // Key action
+  if ((t.includes('মাঝি') || t.includes('বৃদ্ধ')) && (t.includes('নৌকা') || t.includes('নৌকায়') || t.includes('বৈঠা'))) {
+    elements.push('slowly rowing a wooden canoe across serene reflective river waters');
+  } else if (t.includes('বাঘ') && (t.includes('গর্জন') || t.includes('ডাক'))) {
+    elements.push('roaring powerfully on the misty riverbank');
+  }
+
+  // Environment / Location
+  if (t.includes('সুন্দরবন') || t.includes('বন') || t.includes('জঙ্গল')) {
+    elements.push('in the mystical Sundarbans mangrove forest with dense roots');
+  } else if (t.includes('নদী') || t.includes('পানি') || t.includes('খাঁড়ি') || t.includes('জল')) {
+    elements.push('along a tranquil winding river stream');
+  } else if (t.includes('পাহাড়') || t.includes('পর্বত')) {
+    elements.push('surrounded by towering emerald green mountains');
+  } else if (t.includes('শহর') || t.includes('নগর')) {
+    elements.push('in an atmospheric glowing city street');
+  } else if (t.includes('গ্রাম') || t.includes('মাঠ')) {
+    elements.push('in a picturesque lush rural countryside landscape');
+  }
+
+  // Time / Light / Mood
+  if (t.includes('রাত') || t.includes('গভীর রাত')) {
+    if (t.includes('চাঁদ') || t.includes('চাঁদের আলো') || t.includes('রুপোলি')) {
+      elements.push('illuminated by radiant silver moonlight reflecting on dark water');
+    } else {
+      elements.push('at deep midnight under a dramatic starry celestial sky');
+    }
+  } else if (t.includes('ভোর') || t.includes('সকাল') || t.includes('সূর্যকিরণ') || t.includes('সূর্য')) {
+    elements.push('basking in early morning golden sunrise rays filtering through treetops');
+  } else if (t.includes('সন্ধ্যা') || t.includes('সূর্যাস্ত') || t.includes('গোধূলি')) {
+    elements.push('under a breathtaking golden orange sunset twilight sky');
+  }
+
+  // Atmospheric conditions
+  if (t.includes('কুয়াশা') || t.includes('কুয়াশার')) {
+    elements.push('shrouded in thick ethereal atmospheric fog and haze');
+  }
+  if (t.includes('বৃষ্টি') || t.includes('ঝড়')) {
+    elements.push('with dramatic thunderstorm raindrops and ripples');
+  }
+
+  let promptCore = elements.join(', ');
+  if (!promptCore) {
+    promptCore = 'A cinematic atmospheric landscape';
+  }
+
+  return `Cinematic shot, ${promptCore}, ${styleDesc || 'cinematic photorealistic 8k, volumetric lighting, shot on 35mm film'}, ${ratioDesc || '16:9 widescreen'}, masterpiece, highly detailed, no text, no watermark`;
+}
+
 async function generateVisualPromptForScene(sceneText, style, aspectRatio) {
   const styleGuides = {
     'cinematic': 'Cinematic photorealistic 8k, dramatic cinematic lighting, shot on 35mm film, shallow depth of field, hyper-detailed textures, masterpiece',
@@ -1812,50 +1934,208 @@ async function generateVisualPromptForScene(sceneText, style, aspectRatio) {
   const ratioDesc = aspectRatio === '16:9' ? '16:9 landscape aspect ratio' : (aspectRatio === '9:16' ? '9:16 vertical portrait aspect ratio' : '1:1 square aspect ratio');
 
   if (state.apiKey) {
-    try {
-      const keys = parseKeys(state.apiKey);
-      const activeKey = keys[0];
-      const systemPrompt = `You are an elite Hollywood visual director creating detailed image prompts for YouTube story videos.
+    const keys = parseKeys(state.apiKey);
+    const activeKey = keys[0];
+    const candidateModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
+
+    for (const m of candidateModels) {
+      try {
+        const systemPrompt = `You are an elite Hollywood visual director creating detailed image prompts for YouTube story videos.
 Convert this Bengali story excerpt into a vivid, descriptive English image prompt for an image generator (Flux/Stable Diffusion).
 Describe: main visual subject, facial expression/pose, setting, lighting, atmosphere, colors, and camera shot.
 Keep under 50 words. Must emphasize: ${styleDesc}, ${ratioDesc}, no text, no watermark, no border.
 Output ONLY the English prompt text.`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${activeKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `${systemPrompt}\n\nBengali Text: "${sceneText}"` }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 100 }
-        })
-      });
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${activeKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `${systemPrompt}\n\nBengali Text: "${sceneText}"` }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 100 }
+          })
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (text) {
-          return text.replace(/^["']|["']$/g, '').trim();
+        if (response.ok) {
+          const data = await response.json();
+          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+          if (text && !/[\u0980-\u09FF]/.test(text)) {
+            return text.replace(/^["']|["']$/g, '').trim();
+          }
         }
+      } catch (err) {
+        console.warn(`Model ${m} visual prompt error:`, err);
       }
-    } catch (err) {
-      console.warn('Gemini visual prompt fallback:', err);
     }
   }
 
-  // Fallback direct visual prompt
-  return `A cinematic shot depicting: ${sceneText.slice(0, 140)}. ${styleDesc}, ${ratioDesc}, masterpiece, photorealistic, 8k, no watermark`;
+  // Safe semantic English fallback (Zero Bengali characters)
+  return translateBengaliSceneToEnglish(sceneText, styleDesc, ratioDesc);
 }
 
-async function generateSceneImage(sceneId) {
+function isRateLimitBanner(img) {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 60;
+    canvas.height = 60;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, 60, 60);
+
+    const p1 = ctx.getImageData(10, 10, 1, 1).data;
+    const p2 = ctx.getImageData(50, 10, 1, 1).data;
+    const p3 = ctx.getImageData(30, 50, 1, 1).data;
+
+    // Pollinations yellow rate limit banner background is #FCE043
+    // RGB range: R ~ 225-255, G ~ 195-245, B ~ 40-100
+    const isYellow = (p) => (p[0] > 220 && p[1] > 190 && p[2] < 100);
+    return isYellow(p1) && isYellow(p2) && isYellow(p3);
+  } catch (e) {
+    // Canvas tainted or unavailable
+    return false;
+  }
+}
+
+async function waitForImageCooldown(scene, isBatch = false) {
+  // If user provided an API key, zero cooldown needed
+  if (state.pollinationsKey && state.pollinationsKey.trim().length > 0) {
+    return;
+  }
+
+  const now = Date.now();
+  const elapsed = (now - (videoState.lastImageGeneratedTimestamp || 0)) / 1000;
+  const COOLDOWN_SECONDS = 46;
+
+  if (videoState.lastImageGeneratedTimestamp > 0 && elapsed < COOLDOWN_SECONDS) {
+    let remaining = Math.ceil(COOLDOWN_SECONDS - elapsed);
+    if (scene) {
+      scene.imageStatus = 'cooldown';
+      scene.cooldownSeconds = remaining;
+      renderVideoScenes();
+    }
+
+    while (remaining > 0) {
+      if (isBatch && videoState.isGeneratingAll === false) break;
+      await new Promise(r => setTimeout(r, 1000));
+      remaining--;
+      if (scene) {
+        scene.cooldownSeconds = remaining;
+        const timerEl = document.getElementById(`cooldown-timer-${scene.id}`);
+        if (timerEl) {
+          timerEl.textContent = `${remaining}s`;
+        }
+      }
+    }
+  }
+}
+
+function loadImageWithFallback(url, timeoutMs = 40000) {
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    let timedOut = false;
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      reject(new Error('ইমেজ সার্ভার থেকে সাড়া আসতে বেশি সময় নিয়েছে।'));
+    }, timeoutMs);
+
+    // Try with crossOrigin first so canvas can check for rate limit banner
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      if (timedOut || resolved) return;
+      resolved = true;
+      clearTimeout(timer);
+      resolve({ url, img });
+    };
+
+    img.onerror = () => {
+      // Fallback: load without anonymous CORS
+      const imgFallback = new Image();
+      imgFallback.onload = () => {
+        if (timedOut || resolved) return;
+        resolved = true;
+        clearTimeout(timer);
+        resolve({ url, img: imgFallback });
+      };
+      imgFallback.onerror = () => {
+        if (timedOut || resolved) return;
+        resolved = true;
+        clearTimeout(timer);
+        reject(new Error('ইমেজ সার্ভার সাড়া দেয়নি।'));
+      };
+      imgFallback.src = url;
+    };
+
+    img.src = url;
+  });
+}
+
+async function fetchImageBlobWithProxy(imageUrl) {
+  // 1. Try local or Vercel proxy
+  try {
+    const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(imageUrl)}`;
+    const res = await fetch(proxyUrl);
+    if (res.ok) {
+      return await res.blob();
+    }
+  } catch (e) {
+    // Proxy not available or failed
+  }
+
+  // 2. Try direct CORS fetch
+  try {
+    const res = await fetch(imageUrl, { mode: 'cors' });
+    if (res.ok) {
+      return await res.blob();
+    }
+  } catch (e) {
+    // Direct fetch CORS blocked
+  }
+
+  // 3. Try Canvas drawing
+  try {
+    return await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || 1280;
+          canvas.height = img.naturalHeight || 720;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          canvas.toBlob(blob => {
+            if (blob) resolve(blob);
+            else reject(new Error('Canvas blob failed'));
+          }, 'image/jpeg', 0.92);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.onerror = reject;
+      img.src = imageUrl;
+    });
+  } catch (e) {
+    console.warn('Canvas export tainted or failed:', e);
+  }
+
+  return null;
+}
+
+async function generateSceneImage(sceneId, isBatch = false) {
   const scene = videoState.scenes.find(s => s.id === sceneId);
   if (!scene) return;
+
+  // 1. Enforce cooldown if on free keyless tier
+  await waitForImageCooldown(scene, isBatch);
 
   scene.imageStatus = 'generating';
   scene.imageError = '';
   renderVideoScenes();
 
   try {
-    if (!scene.visualPrompt) {
+    // Ensure English visual prompt (if missing or contains Bengali letters)
+    if (!scene.visualPrompt || /[\u0980-\u09FF]/.test(scene.visualPrompt)) {
       scene.visualPrompt = await generateVisualPromptForScene(scene.text, videoState.visualStyle, videoState.aspectRatio);
       const inputEl = document.getElementById(`prompt-input-${scene.id}`);
       if (inputEl) inputEl.value = scene.visualPrompt;
@@ -1870,21 +2150,56 @@ async function generateSceneImage(sceneId) {
       height = 1024;
     }
 
-    const seed = Math.floor(Math.random() * 1000000);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(scene.visualPrompt)}?width=${width}&height=${height}&model=flux&nologo=true&seed=${seed}`;
+    const seed = Math.floor(Math.random() * 10000000);
+    const cleanPrompt = scene.visualPrompt.replace(/[\r\n"']/g, ' ').replace(/\s+/g, ' ').trim();
+    const keyParam = state.pollinationsKey && state.pollinationsKey.trim().length > 0 
+      ? `&key=${encodeURIComponent(state.pollinationsKey.trim())}` 
+      : '';
 
-    const res = await fetch(imageUrl);
-    if (!res.ok) throw new Error('ইমেজ সার্ভার সাড়া দেয়নি।');
+    const ts = Date.now();
+    const turboUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=${width}&height=${height}&model=turbo&nologo=true&seed=${seed}&t=${ts}${keyParam}`;
+    const fluxUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=${width}&height=${height}&model=flux&nologo=true&seed=${seed}&t=${ts}${keyParam}`;
 
-    const blob = await res.blob();
-    if (scene.imageUrl) URL.revokeObjectURL(scene.imageUrl);
-    scene.imageBlob = blob;
-    scene.imageUrl = URL.createObjectURL(blob);
+    let result = null;
+    try {
+      result = await loadImageWithFallback(turboUrl, 35000);
+    } catch (errTurbo) {
+      console.warn('Turbo model error, trying flux model:', errTurbo);
+      result = await loadImageWithFallback(fluxUrl, 45000);
+    }
+
+    // Check if the loaded image is the yellow rate-limit banner
+    if (result && result.img && isRateLimitBanner(result.img)) {
+      console.warn(`Scene #${scene.id}: Pollinations rate limit banner detected.`);
+      videoState.lastImageGeneratedTimestamp = Date.now();
+
+      // Initiate cooldown and auto-retry
+      showToast(`দৃশ্য #${scene.id}: Pollinations ফ্রি লিমিট পৌঁছেছে। ৪৫ সেকেন্ড অপেক্ষা করে ছবি তৈরি হচ্ছে...`, 'info');
+      await waitForImageCooldown(scene, isBatch);
+
+      const retryTs = Date.now();
+      const retrySeed = Math.floor(Math.random() * 10000000);
+      const retryUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=${width}&height=${height}&model=turbo&nologo=true&seed=${retrySeed}&t=${retryTs}${keyParam}`;
+      result = await loadImageWithFallback(retryUrl, 40000);
+
+      if (result && result.img && isRateLimitBanner(result.img)) {
+        throw new Error('ফ্রি লিমিট অতিক্রম করেছে। অনুগ্রহ করে ৪৫ সেকেন্ড পর চেষ্টা করুন অথবা সেটিংস এ Pollinations Free Key দিন।');
+      }
+    }
+
+    videoState.lastImageGeneratedTimestamp = Date.now();
+    scene.imageUrl = result.url;
     scene.imageStatus = 'ready';
+
+    // Pre-cache blob in background for ZIP
+    fetchImageBlobWithProxy(result.url).then(blob => {
+      if (blob) scene.imageBlob = blob;
+    }).catch(e => console.warn('Blob prefetch:', e));
+
   } catch (err) {
     console.error('Image gen error:', err);
     scene.imageStatus = 'error';
-    scene.imageError = err.message || 'ছবি তৈরি করা যায়নি';
+    scene.imageError = err.message || 'ছবি তৈরি করা যায়নি। আবার চেষ্টা করুন।';
   }
 
   renderVideoScenes();
@@ -1982,8 +2297,8 @@ async function generateAllVideoScenes(mode = 'both') {
       }
     }
     if (mode === 'both' || mode === 'image') {
-      if (!scene.imageBlob || scene.imageStatus === 'error') {
-        tasks.push(generateSceneImage(scene.id));
+      if (!scene.imageUrl || scene.imageStatus === 'error') {
+        tasks.push(generateSceneImage(scene.id, true));
       }
     }
 
@@ -2021,7 +2336,7 @@ function updateVideoControlsUI() {
     elements.videoGenerateAllAudioBtn.disabled = isRunning;
   }
   if (elements.videoDownloadZipBtn) {
-    const hasWork = videoState.scenes.some(s => s.audioBlob || s.imageBlob);
+    const hasWork = videoState.scenes.some(s => s.audioBlob || s.imageUrl);
     elements.videoDownloadZipBtn.disabled = !hasWork || isRunning;
   }
 }
@@ -2032,29 +2347,47 @@ async function downloadVideoZip() {
     return;
   }
 
-  const zip = new JSZip();
-  let count = 0;
-
-  videoState.scenes.forEach((scene, idx) => {
-    const pad = String(idx + 1).padStart(2, '0');
-    if (scene.audioBlob) {
-      zip.file(`Scene_${pad}_audio.wav`, scene.audioBlob);
-      count++;
-    }
-    if (scene.imageBlob) {
-      zip.file(`Scene_${pad}_image.jpg`, scene.imageBlob);
-      count++;
-    }
-    zip.file(`Scene_${pad}_script.txt`, scene.text);
-  });
-
-  if (count === 0) {
+  const hasItems = videoState.scenes.some(s => s.audioBlob || s.imageUrl);
+  if (!hasItems) {
     showToast('ডাউনলোড করার মত অডিও বা ছবি এখনও নেই।', 'warning');
     return;
   }
 
   showToast('YouTube ভিডিও প্রজেক্টের ZIP তৈরি হচ্ছে...', 'info');
+
   try {
+    const zip = new JSZip();
+    let count = 0;
+
+    for (let idx = 0; idx < videoState.scenes.length; idx++) {
+      const scene = videoState.scenes[idx];
+      const pad = String(idx + 1).padStart(2, '0');
+
+      if (scene.audioBlob) {
+        zip.file(`Scene_${pad}_audio.wav`, scene.audioBlob);
+        count++;
+      }
+
+      if (scene.imageBlob) {
+        zip.file(`Scene_${pad}_image.jpg`, scene.imageBlob);
+        count++;
+      } else if (scene.imageUrl) {
+        const blob = await fetchImageBlobWithProxy(scene.imageUrl);
+        if (blob) {
+          scene.imageBlob = blob;
+          zip.file(`Scene_${pad}_image.jpg`, blob);
+          count++;
+        }
+      }
+
+      zip.file(`Scene_${pad}_script.txt`, scene.text);
+    }
+
+    if (count === 0) {
+      showToast('ডাউনলোড করার মত অডিও বা ছবি তৈরি হয়নি।', 'warning');
+      return;
+    }
+
     const content = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(content);
     const a = document.createElement('a');
@@ -2096,13 +2429,60 @@ window.regenerateScenePrompt = async function(id) {
   }
 };
 
+window.downloadSceneImage = async function(sceneId) {
+  const scene = videoState.scenes.find(s => s.id === sceneId);
+  if (!scene || !scene.imageUrl) return;
+  const pad = String(scene.id).padStart(2, '0');
+  const filename = `Scene_${pad}_image.jpg`;
+
+  if (scene.imageBlob) {
+    const blobUrl = URL.createObjectURL(scene.imageBlob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+    return;
+  }
+
+  try {
+    showToast('ছবি ডাউনলোড প্রস্তুত হচ্ছে...', 'info');
+    const blob = await fetchImageBlobWithProxy(scene.imageUrl);
+    if (blob) {
+      scene.imageBlob = blob;
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      return;
+    }
+  } catch (e) {
+    console.warn('Proxy download error:', e);
+  }
+
+  // Fallback: open in new tab
+  window.open(scene.imageUrl, '_blank');
+};
+
 window.openVideoImageModal = function(imgSrc, title, downloadName) {
   if (elements.videoImageModal && elements.videoModalImage) {
     elements.videoModalImage.src = imgSrc;
     if (elements.videoModalTitle) elements.videoModalTitle.textContent = title + ' (1080p Full Preview)';
     if (elements.videoModalDownloadBtn) {
-      elements.videoModalDownloadBtn.href = imgSrc;
-      elements.videoModalDownloadBtn.download = downloadName || 'scene_image.jpg';
+      elements.videoModalDownloadBtn.onclick = (e) => {
+        e.preventDefault();
+        const a = document.createElement('a');
+        a.href = imgSrc;
+        a.target = '_blank';
+        a.download = downloadName || 'scene_image.jpg';
+        a.click();
+      };
     }
     elements.videoImageModal.classList.remove('hidden');
     if (window.lucide) window.lucide.createIcons();
