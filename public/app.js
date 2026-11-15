@@ -41,7 +41,14 @@ const elements = {
   
   chunksContainer: document.getElementById('chunksContainer'),
   boxCountDisplay: document.getElementById('boxCountDisplay'),
-  toastNotification: document.getElementById('toastNotification')
+  toastNotification: document.getElementById('toastNotification'),
+
+  // Tab Elements
+  tabBtnAudio: document.getElementById('tabBtnAudio'),
+  tabBtnVideo: document.getElementById('tabBtnVideo'),
+  tabContentAudio: document.getElementById('tabContentAudio'),
+  tabContentVideo: document.getElementById('tabContentVideo'),
+  generateVideoBtn: document.getElementById('generateVideoBtn')
 };
 
 // Initialize
@@ -114,8 +121,52 @@ function updateApiKeyStatus(hasKey) {
 }
 
 function setupEventListeners() {
+  // Tab Navigation (Text to Audio vs Text to Video)
+  function switchTab(tab) {
+    if (tab === 'audio') {
+      if (elements.tabBtnAudio) {
+        elements.tabBtnAudio.className = 'tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 bg-teal-600 text-white shadow-md shadow-teal-600/25';
+      }
+      if (elements.tabBtnVideo) {
+        elements.tabBtnVideo.className = 'tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60';
+      }
+      if (elements.tabContentAudio) elements.tabContentAudio.classList.remove('hidden');
+      if (elements.tabContentVideo) elements.tabContentVideo.classList.add('hidden');
+    } else if (tab === 'video') {
+      if (elements.tabBtnVideo) {
+        elements.tabBtnVideo.className = 'tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 bg-teal-600 text-white shadow-md shadow-teal-600/25';
+      }
+      if (elements.tabBtnAudio) {
+        elements.tabBtnAudio.className = 'tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60';
+      }
+      if (elements.tabContentVideo) elements.tabContentVideo.classList.remove('hidden');
+      if (elements.tabContentAudio) elements.tabContentAudio.classList.add('hidden');
+    }
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  window.switchTab = switchTab;
+
+  if (elements.tabBtnAudio) {
+    elements.tabBtnAudio.addEventListener('click', () => switchTab('audio'));
+  }
+  if (elements.tabBtnVideo) {
+    elements.tabBtnVideo.addEventListener('click', () => switchTab('video'));
+  }
+
+  if (elements.generateVideoBtn) {
+    elements.generateVideoBtn.addEventListener('click', () => {
+      showToast('Text to Video ফিচারটি দ্রুতই উন্মুক্ত করা হচ্ছে! অডিও তৈরির জন্য Text to Audio ট্যাবে থাকুন।', 'info');
+    });
+  }
+
   // Toggle Settings Panel
   elements.toggleSettingsBtn.addEventListener('click', () => {
+    if (elements.tabContentAudio && elements.tabContentAudio.classList.contains('hidden')) {
+      switchTab('audio');
+      elements.settingsPanel.classList.remove('hidden');
+      return;
+    }
     elements.settingsPanel.classList.toggle('hidden');
   });
 
@@ -1277,6 +1328,16 @@ window.replaceWordInSafeEditor = function(oldWord, newWord) {
     const regex = new RegExp(oldWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
     safeTextEditor.value = safeTextEditor.value.replace(regex, newWord);
     showToast(`"${oldWord}" এর জায়গায় "${newWord}" প্রতিস্থাপন করা হয়েছে!`, 'success');
+  }
+};
+
+// Global helper for video prompt preset insertion
+window.insertVideoPreset = function(presetText) {
+  const videoPromptInput = document.getElementById('videoPromptInput');
+  if (videoPromptInput) {
+    videoPromptInput.value = presetText;
+    videoPromptInput.focus();
+    showToast('আইডিয়া প্রম্পট যুক্ত করা হয়েছে!', 'info');
   }
 };
 
