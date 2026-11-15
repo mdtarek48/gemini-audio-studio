@@ -1,7 +1,10 @@
+// Default Pollinations Key for Unlimited Instant Image Generation (No wait time)
+const DEFAULT_POLLINATIONS_KEY = 'sk_fizHkhVWIBfi5lXUwBZv1QzEayM5u49H';
+
 // State Management
 const state = {
   apiKey: localStorage.getItem('gemini_api_key') || '',
-  pollinationsKey: localStorage.getItem('pollinations_api_key') || '',
+  pollinationsKey: localStorage.getItem('pollinations_api_key') || DEFAULT_POLLINATIONS_KEY,
   voice: localStorage.getItem('gemini_voice') || 'Kore',
   voiceTone: localStorage.getItem('gemini_voice_tone') || 'Bright, sunny, welcoming morning greeting with a subtle vocal smile and crisp pacing',
   model: localStorage.getItem('gemini_model') || 'gemini-3.8-flash-tts',
@@ -112,9 +115,17 @@ function init() {
     updateApiKeyStatus(false);
   }
 
-  // Load saved Pollinations Key
+  // Load saved Pollinations Key (defaults to user's key for 0-second instant generation)
+  const savedPollKey = localStorage.getItem('pollinations_api_key');
+  if (!savedPollKey || !savedPollKey.trim()) {
+    state.pollinationsKey = DEFAULT_POLLINATIONS_KEY;
+    localStorage.setItem('pollinations_api_key', DEFAULT_POLLINATIONS_KEY);
+  } else {
+    state.pollinationsKey = savedPollKey.trim();
+  }
+
   if (elements.pollinationsKeyInput) {
-    elements.pollinationsKeyInput.value = state.pollinationsKey || '';
+    elements.pollinationsKeyInput.value = state.pollinationsKey;
   }
   updatePollinationsKeyStatus(!!state.pollinationsKey);
 
@@ -145,6 +156,13 @@ function init() {
   }
 
   // Initialize Video Studio
+  if (videoState.scenes && videoState.scenes.length > 0) {
+    videoState.scenes.forEach(s => {
+      if (!s.visualPrompt || /[\u0980-\u09FF]/.test(s.visualPrompt) || s.visualPrompt.startsWith('A cinematic shot depicting:')) {
+        s.visualPrompt = translateBengaliSceneToEnglish(s.text, videoState.visualStyle, videoState.aspectRatio);
+      }
+    });
+  }
   renderVideoScenes();
   updateVideoTextStats();
 
@@ -1565,21 +1583,23 @@ function splitVideoScript() {
   const oldScenes = videoState.scenes;
   videoState.scenes = grouped.map((text, idx) => {
     const existing = oldScenes.find(o => o.text === text);
-    if (existing) {
-      return { ...existing, id: idx + 1 };
+    let prompt = existing && existing.visualPrompt ? existing.visualPrompt : '';
+    // If prompt contains Bengali characters, old broken placeholder, or is empty:
+    if (!prompt || /[\u0980-\u09FF]/.test(prompt) || prompt.startsWith('A cinematic shot depicting:')) {
+      prompt = translateBengaliSceneToEnglish(text, videoState.visualStyle, videoState.aspectRatio);
     }
     return {
       id: idx + 1,
       text: text,
-      visualPrompt: '',
-      imageBlob: null,
-      imageUrl: '',
-      imageStatus: 'idle',
-      imageError: '',
-      audioBlob: null,
-      audioUrl: '',
-      audioStatus: 'idle',
-      audioError: ''
+      visualPrompt: prompt,
+      imageBlob: existing ? existing.imageBlob : null,
+      imageUrl: existing ? existing.imageUrl : '',
+      imageStatus: existing ? existing.imageStatus : 'idle',
+      imageError: existing ? existing.imageError : '',
+      audioBlob: existing ? existing.audioBlob : null,
+      audioUrl: existing ? existing.audioUrl : '',
+      audioStatus: existing ? existing.audioStatus : 'idle',
+      audioError: existing ? existing.audioError : ''
     };
   });
 
@@ -1691,11 +1711,11 @@ function renderVideoScenes() {
               </button>
               <button type="button" onclick="generateSceneImage(${scene.id})" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white text-xs rounded-xl border border-slate-700/80 transition flex items-center gap-1.5">
                 <i data-lucide="image" class="w-3.5 h-3.5 text-indigo-400"></i>
-                <span>${scene.imageBlob ? 'পুনরায় ছবি' : 'ছবি জেনারেট'}</span>
+                <span>${scene.imageUrl ? 'পুনরায় ছবি' : 'ছবি জেনারেট'}</span>
               </button>
               <button type="button" onclick="generateSceneAudio(${scene.id})" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-white text-xs rounded-xl border border-slate-700/80 transition flex items-center gap-1.5">
                 <i data-lucide="volume-2" class="w-3.5 h-3.5 text-teal-400"></i>
-                <span>${scene.audioBlob ? 'পুনরায় অডিও' : 'অডিও জেনারেট'}</span>
+                <span>${scene.audioUrl || scene.audioBlob ? 'পুনরায় অডিও' : 'অডিও জেনারেট'}</span>
               </button>
             </div>
           </div>
@@ -1855,71 +1875,94 @@ function renderVideoSceneBadge(status) {
 
 function translateBengaliSceneToEnglish(text, styleDesc = '', ratioDesc = '') {
   const t = text.toLowerCase();
-  const elements = [];
+  const subjects = [];
+  const actions = [];
+  const env = [];
+  const lighting = [];
+  const atmosphere = [];
 
-  // Characters / Subjects
+  // Characters
   if (t.includes('মাঝি') || t.includes('জেলে')) {
-    if (t.includes('বৃদ্ধ')) elements.push('an elderly weathered South Asian fisherman');
-    else elements.push('a traditional South Asian fisherman');
+    if (t.includes('বৃদ্ধ')) subjects.push('an elderly weathered South Asian fisherman with wrinkled face');
+    else subjects.push('a traditional South Asian fisherman');
   } else if (t.includes('বাঘ') || t.includes('রয়েল বেঙ্গল') || t.includes('টাইগার')) {
-    elements.push('a magnificent Royal Bengal tiger with glowing amber eyes');
-  } else if (t.includes('রাজা')) {
-    elements.push('a regal Indian emperor dressed in ornate royal silk robes');
+    subjects.push('a magnificent Royal Bengal tiger with glowing amber eyes');
+  } else if (t.includes('হরিণ')) {
+    subjects.push('an alert spotted chital deer');
+  } else if (t.includes('কুমির')) {
+    subjects.push('a menacing saltwater crocodile lurking at the water edge');
   } else if (t.includes('শিশু') || t.includes('বাচ্চা') || t.includes('ছেলে') || t.includes('মেয়ে')) {
-    elements.push('an expressive innocent child');
+    subjects.push('an expressive innocent child');
+  } else if (t.includes('রাজা') || t.includes('সম্রাট')) {
+    subjects.push('a regal Indian emperor dressed in ornate royal silk robes');
+  } else if (t.includes('নারী') || t.includes('মহিলা') || t.includes('বধূ')) {
+    subjects.push('a graceful South Asian woman in traditional clothing');
   } else if (t.includes('নৌকা') || t.includes('নৌকায়')) {
-    elements.push('a rustic traditional handcrafted wooden boat');
+    subjects.push('a rustic handcrafted wooden boat');
   } else {
-    elements.push('a captivating dramatic cinematic scene');
+    subjects.push('a captivating dramatic scene');
   }
 
-  // Key action
-  if ((t.includes('মাঝি') || t.includes('বৃদ্ধ')) && (t.includes('নৌকা') || t.includes('নৌকায়') || t.includes('বৈঠা'))) {
-    elements.push('slowly rowing a wooden canoe across serene reflective river waters');
-  } else if (t.includes('বাঘ') && (t.includes('গর্জন') || t.includes('ডাক'))) {
-    elements.push('roaring powerfully on the misty riverbank');
+  // Vehicles / Props
+  if (t.includes('নৌকা') || t.includes('নৌকায়') || t.includes('ডিঙি')) {
+    if (!subjects.some(s => s.includes('boat'))) {
+      subjects.push('a rustic wooden boat');
+    }
+  }
+  if (t.includes('লণ্ঠন') || t.includes('হারিকেন') || t.includes('কুপি') || t.includes('আলো')) {
+    subjects.push('a warm glowing kerosene lantern on the bow');
   }
 
-  // Environment / Location
+  // Actions
+  if ((t.includes('মাঝি') || t.includes('বৃদ্ধ')) && (t.includes('নৌকা') || t.includes('নৌকায়') || t.includes('বৈঠা') || t.includes('চলছিল'))) {
+    actions.push('slowly rowing a wooden canoe across serene reflective river waters');
+  } else if (t.includes('বাঘ') && (t.includes('গর্জন') || t.includes('ডাক') || t.includes('লাফ'))) {
+    actions.push('roaring powerfully on the muddy riverbank');
+  } else if (t.includes('চলছিল') || t.includes('যাচ্ছিল') || t.includes('ঘুরে')) {
+    actions.push('navigating quietly through the secluded waters');
+  }
+
+  // Environment
   if (t.includes('সুন্দরবন') || t.includes('বন') || t.includes('জঙ্গল')) {
-    elements.push('in the mystical Sundarbans mangrove forest with dense roots');
+    env.push('in the mystical Sundarbans mangrove forest with dense exposed roots');
   } else if (t.includes('নদী') || t.includes('পানি') || t.includes('খাঁড়ি') || t.includes('জল')) {
-    elements.push('along a tranquil winding river stream');
+    env.push('along a tranquil winding river creek');
   } else if (t.includes('পাহাড়') || t.includes('পর্বত')) {
-    elements.push('surrounded by towering emerald green mountains');
-  } else if (t.includes('শহর') || t.includes('নগর')) {
-    elements.push('in an atmospheric glowing city street');
+    env.push('surrounded by towering emerald green mountains');
   } else if (t.includes('গ্রাম') || t.includes('মাঠ')) {
-    elements.push('in a picturesque lush rural countryside landscape');
+    env.push('in a picturesque lush rural countryside landscape');
+  } else if (t.includes('শহর') || t.includes('নগর')) {
+    env.push('in an atmospheric vibrant street scene');
   }
 
-  // Time / Light / Mood
+  // Lighting & Time
   if (t.includes('রাত') || t.includes('গভীর রাত')) {
     if (t.includes('চাঁদ') || t.includes('চাঁদের আলো') || t.includes('রুপোলি')) {
-      elements.push('illuminated by radiant silver moonlight reflecting on dark water');
+      lighting.push('illuminated by a brilliant silver full moon casting shimmering reflections on dark water');
     } else {
-      elements.push('at deep midnight under a dramatic starry celestial sky');
+      lighting.push('at deep midnight under a dramatic starry celestial sky');
     }
   } else if (t.includes('ভোর') || t.includes('সকাল') || t.includes('সূর্যকিরণ') || t.includes('সূর্য')) {
-    elements.push('basking in early morning golden sunrise rays filtering through treetops');
+    lighting.push('basking in early morning golden sunrise rays piercing through misty trees');
   } else if (t.includes('সন্ধ্যা') || t.includes('সূর্যাস্ত') || t.includes('গোধূলি')) {
-    elements.push('under a breathtaking golden orange sunset twilight sky');
+    lighting.push('under a breathtaking golden orange sunset twilight sky');
   }
 
   // Atmospheric conditions
   if (t.includes('কুয়াশা') || t.includes('কুয়াশার')) {
-    elements.push('shrouded in thick ethereal atmospheric fog and haze');
+    atmosphere.push('shrouded in thick ethereal atmospheric fog and haze hovering above water');
   }
   if (t.includes('বৃষ্টি') || t.includes('ঝড়')) {
-    elements.push('with dramatic thunderstorm raindrops and ripples');
+    atmosphere.push('with dramatic thunderstorm raindrops and ripples');
   }
 
-  let promptCore = elements.join(', ');
+  const all = [...subjects, ...actions, ...env, ...lighting, ...atmosphere];
+  let promptCore = all.join(', ');
   if (!promptCore) {
-    promptCore = 'A cinematic atmospheric landscape';
+    promptCore = 'A dramatic atmospheric cinematic scene';
   }
 
-  return `Cinematic shot, ${promptCore}, ${styleDesc || 'cinematic photorealistic 8k, volumetric lighting, shot on 35mm film'}, ${ratioDesc || '16:9 widescreen'}, masterpiece, highly detailed, no text, no watermark`;
+  return `Cinematic wide shot, ${promptCore}, ${styleDesc || 'cinematic photorealistic 8k, volumetric lighting, shot on 35mm film'}, ${ratioDesc || '16:9 widescreen'}, masterpiece, highly detailed, no text, no watermark`;
 }
 
 async function generateVisualPromptForScene(sceneText, style, aspectRatio) {
@@ -1995,8 +2038,12 @@ function isRateLimitBanner(img) {
 }
 
 async function waitForImageCooldown(scene, isBatch = false) {
+  const activeKey = (state.pollinationsKey && state.pollinationsKey.trim().length > 0)
+    ? state.pollinationsKey.trim()
+    : DEFAULT_POLLINATIONS_KEY;
+
   // If user provided an API key, zero cooldown needed
-  if (state.pollinationsKey && state.pollinationsKey.trim().length > 0) {
+  if (activeKey && activeKey.trim().length > 0) {
     return;
   }
 
@@ -2126,21 +2173,19 @@ async function generateSceneImage(sceneId, isBatch = false) {
   const scene = videoState.scenes.find(s => s.id === sceneId);
   if (!scene) return;
 
-  // 1. Enforce cooldown if on free keyless tier
+  // 1. Enforce cooldown if on free keyless tier (0s wait when API key is active)
   await waitForImageCooldown(scene, isBatch);
+
+  // 2. Ensure 100% pure English visual prompt (Strict validation: never send Bengali text to image generator!)
+  if (!scene.visualPrompt || /[\u0980-\u09FF]/.test(scene.visualPrompt) || scene.visualPrompt.startsWith('A cinematic shot depicting:')) {
+    scene.visualPrompt = await generateVisualPromptForScene(scene.text, videoState.visualStyle, videoState.aspectRatio);
+  }
 
   scene.imageStatus = 'generating';
   scene.imageError = '';
   renderVideoScenes();
 
   try {
-    // Ensure English visual prompt (if missing or contains Bengali letters)
-    if (!scene.visualPrompt || /[\u0980-\u09FF]/.test(scene.visualPrompt)) {
-      scene.visualPrompt = await generateVisualPromptForScene(scene.text, videoState.visualStyle, videoState.aspectRatio);
-      const inputEl = document.getElementById(`prompt-input-${scene.id}`);
-      if (inputEl) inputEl.value = scene.visualPrompt;
-    }
-
     let width = 1280, height = 720;
     if (videoState.aspectRatio === '9:16') {
       width = 720;
@@ -2152,20 +2197,23 @@ async function generateSceneImage(sceneId, isBatch = false) {
 
     const seed = Math.floor(Math.random() * 10000000);
     const cleanPrompt = scene.visualPrompt.replace(/[\r\n"']/g, ' ').replace(/\s+/g, ' ').trim();
-    const keyParam = state.pollinationsKey && state.pollinationsKey.trim().length > 0 
-      ? `&key=${encodeURIComponent(state.pollinationsKey.trim())}` 
-      : '';
+    const activeKey = (state.pollinationsKey && state.pollinationsKey.trim().length > 0)
+      ? state.pollinationsKey.trim()
+      : DEFAULT_POLLINATIONS_KEY;
+    const keyParam = activeKey ? `&key=${encodeURIComponent(activeKey)}&token=${encodeURIComponent(activeKey)}` : '';
 
     const ts = Date.now();
-    const turboUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=${width}&height=${height}&model=turbo&nologo=true&seed=${seed}&t=${ts}${keyParam}`;
-    const fluxUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=${width}&height=${height}&model=flux&nologo=true&seed=${seed}&t=${ts}${keyParam}`;
+    // Primary modern endpoint: gen.pollinations.ai (Accepts enter.pollinations.ai keys without 402/503)
+    const genUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(cleanPrompt)}?model=flux&width=${width}&height=${height}&seed=${seed}&nologo=true&t=${ts}${keyParam}`;
+    // Fallback endpoint: image.pollinations.ai
+    const legacyUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?model=flux&width=${width}&height=${height}&seed=${seed}&nologo=true&t=${ts}${keyParam}`;
 
     let result = null;
     try {
-      result = await loadImageWithFallback(turboUrl, 35000);
-    } catch (errTurbo) {
-      console.warn('Turbo model error, trying flux model:', errTurbo);
-      result = await loadImageWithFallback(fluxUrl, 45000);
+      result = await loadImageWithFallback(genUrl, 30000);
+    } catch (errGen) {
+      console.warn('gen.pollinations.ai error, trying legacy fallback:', errGen);
+      result = await loadImageWithFallback(legacyUrl, 35000);
     }
 
     // Check if the loaded image is the yellow rate-limit banner
@@ -2179,11 +2227,11 @@ async function generateSceneImage(sceneId, isBatch = false) {
 
       const retryTs = Date.now();
       const retrySeed = Math.floor(Math.random() * 10000000);
-      const retryUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=${width}&height=${height}&model=turbo&nologo=true&seed=${retrySeed}&t=${retryTs}${keyParam}`;
-      result = await loadImageWithFallback(retryUrl, 40000);
+      const retryUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(cleanPrompt)}?model=flux&width=${width}&height=${height}&seed=${retrySeed}&nologo=true&t=${retryTs}${keyParam}`;
+      result = await loadImageWithFallback(retryUrl, 35000);
 
       if (result && result.img && isRateLimitBanner(result.img)) {
-        throw new Error('ফ্রি লিমিট অতিক্রম করেছে। অনুগ্রহ করে ৪৫ সেকেন্ড পর চেষ্টা করুন অথবা সেটিংস এ Pollinations Free Key দিন।');
+        throw new Error('ফ্রি লিমিট অতিক্রম করেছে। অনুগ্রহ করে ৪৫ সেকেন্ড পর চেষ্টা করুন অথবা সেটিংস এ Pollinations Free Key চেক করুন।');
       }
     }
 
