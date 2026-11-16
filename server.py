@@ -95,8 +95,13 @@ class GeminiTTSHandler(http.server.SimpleHTTPRequestHandler):
             return
         try:
             req = urllib.request.Request(target_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                content_type = resp.headers.get("Content-Type", "image/jpeg")
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                content_type = resp.headers.get("Content-Type")
+                if not content_type:
+                    if ".mp4" in target_url or "/video/" in target_url:
+                        content_type = "video/mp4"
+                    else:
+                        content_type = "image/jpeg"
                 data = resp.read()
                 self.send_response(200)
                 self.send_header("Content-Type", content_type)

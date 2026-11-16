@@ -87,6 +87,7 @@ const elements = {
   videoSplitBtn: document.getElementById('videoSplitBtn'),
   videoGenerateAllBothBtn: document.getElementById('videoGenerateAllBothBtn'),
   videoGenerateAllBothText: document.getElementById('videoGenerateAllBothText'),
+  videoGenerateAllMotionBtn: document.getElementById('videoGenerateAllMotionBtn'),
   videoGenerateAllImageBtn: document.getElementById('videoGenerateAllImageBtn'),
   videoGenerateAllAudioBtn: document.getElementById('videoGenerateAllAudioBtn'),
   videoStopBtn: document.getElementById('videoStopBtn'),
@@ -1605,6 +1606,10 @@ function setupVideoStudioEventListeners() {
     elements.videoGenerateAllBothBtn.addEventListener('click', () => generateAllVideoScenes('both'));
   }
 
+  if (elements.videoGenerateAllMotionBtn) {
+    elements.videoGenerateAllMotionBtn.addEventListener('click', () => generateAllVideoScenes('motion'));
+  }
+
   if (elements.videoGenerateAllImageBtn) {
     elements.videoGenerateAllImageBtn.addEventListener('click', () => generateAllVideoScenes('image'));
   }
@@ -1706,6 +1711,11 @@ function splitVideoScript() {
       imageUrl: existing ? existing.imageUrl : '',
       imageStatus: existing ? existing.imageStatus : 'idle',
       imageError: existing ? existing.imageError : '',
+      videoClipBlob: existing ? existing.videoClipBlob : null,
+      videoClipUrl: existing ? existing.videoClipUrl : '',
+      videoClipStatus: existing ? existing.videoClipStatus : 'idle',
+      videoClipError: existing ? existing.videoClipError : '',
+      mediaViewMode: existing ? (existing.mediaViewMode || (existing.videoClipUrl ? 'video' : 'image')) : 'image',
       audioBlob: existing ? existing.audioBlob : null,
       audioUrl: existing ? existing.audioUrl : '',
       audioStatus: existing ? existing.audioStatus : 'idle',
@@ -1793,11 +1803,15 @@ function renderVideoScenes() {
           <div class="flex flex-wrap items-center gap-2">
             <div class="flex items-center gap-1">
               <span class="text-[10px] text-slate-400">অডিও:</span>
-              ${renderVideoSceneBadge(scene.audioStatus, 'audio')}
+              ${renderVideoSceneBadge(scene.audioStatus)}
             </div>
             <div class="flex items-center gap-1">
               <span class="text-[10px] text-slate-400">ছবি:</span>
-              ${renderVideoSceneBadge(scene.imageStatus, 'image')}
+              ${renderVideoSceneBadge(scene.imageStatus)}
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="text-[10px] text-slate-400">৩ডি মোশন:</span>
+              ${renderVideoSceneBadge(scene.videoClipStatus)}
             </div>
           </div>
         </div>
@@ -1841,7 +1855,11 @@ function renderVideoScenes() {
             <div class="flex flex-wrap items-center gap-2 pt-1">
               <button type="button" onclick="generateSceneBoth(${scene.id})" class="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-teal-600 hover:from-indigo-500 hover:to-teal-500 text-white font-medium text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20">
                 <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
-                <span>ভিডিও ও অডিও জেনারেট</span>
+                <span>ছবি ও অডিও</span>
+              </button>
+              <button type="button" onclick="generateSceneVideoClip(${scene.id})" class="px-3 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-purple-600/20">
+                <i data-lucide="video" class="w-3.5 h-3.5"></i>
+                <span>${scene.videoClipUrl ? 'পুনরায় মোশন' : '🎬 ৩ডি মোশন'}</span>
               </button>
               <button type="button" onclick="generateSceneImage(${scene.id})" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white text-xs rounded-xl border border-slate-700/80 transition flex items-center gap-1.5">
                 <i data-lucide="image" class="w-3.5 h-3.5 text-indigo-400"></i>
@@ -1854,31 +1872,54 @@ function renderVideoScenes() {
             </div>
           </div>
 
-          <!-- Right Column (Media: Image & Audio Player) -->
+          <!-- Right Column (Media: Video Clip / Image & Audio Player) -->
           <div class="lg:col-span-5 space-y-3 flex flex-col justify-between">
             
-            <!-- Image Box -->
+            <!-- Media Box (Video or Image) -->
             <div class="space-y-1.5">
               <div class="flex items-center justify-between text-xs">
-                <span class="font-medium text-slate-300 flex items-center gap-1.5">
-                  <i data-lucide="image" class="w-3.5 h-3.5 text-indigo-400"></i>
-                  <span>সিনেমাটিক দৃশ্য ছবি (${videoState.aspectRatio})</span>
-                </span>
-                ${scene.imageUrl ? `
-                  <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium text-slate-300 flex items-center gap-1.5">
+                    <i data-lucide="${scene.mediaViewMode === 'video' ? 'video' : 'image'}" class="w-3.5 h-3.5 ${scene.mediaViewMode === 'video' ? 'text-purple-400' : 'text-indigo-400'}"></i>
+                    <span>${scene.mediaViewMode === 'video' ? '৩ডি মোশন ভিডিও' : 'সিনেমাটিক দৃশ্য ছবি'} (${videoState.aspectRatio})</span>
+                  </span>
+                  ${(scene.videoClipUrl && scene.imageUrl) ? `
+                    <div class="inline-flex rounded-lg bg-slate-950 border border-slate-800 p-0.5 text-[10px]">
+                      <button type="button" onclick="setMediaViewMode(${scene.id}, 'video')" class="px-2 py-0.5 rounded transition ${scene.mediaViewMode === 'video' ? 'bg-purple-600 text-white font-semibold' : 'text-slate-400 hover:text-white'}">মোশন</button>
+                      <button type="button" onclick="setMediaViewMode(${scene.id}, 'image')" class="px-2 py-0.5 rounded transition ${scene.mediaViewMode === 'image' ? 'bg-indigo-600 text-white font-semibold' : 'text-slate-400 hover:text-white'}">ছবি</button>
+                    </div>
+                  ` : ''}
+                </div>
+
+                <div class="flex items-center gap-2">
+                  ${scene.mediaViewMode === 'video' && scene.videoClipUrl ? `
+                    <a href="${scene.videoClipUrl}" download="Scene_${pad}_motion.mp4" class="text-[11px] text-purple-400 hover:underline flex items-center gap-0.5">
+                      <i data-lucide="download" class="w-3 h-3"></i> MP4 ডাউনলোড
+                    </a>
+                  ` : scene.imageUrl ? `
                     <button type="button" onclick="openVideoImageModal('${scene.imageUrl}', 'দৃশ্য #${pad}', 'Scene_${pad}_image.jpg')" class="text-[11px] text-indigo-300 hover:text-indigo-200 flex items-center gap-0.5">
                       <i data-lucide="maximize-2" class="w-3 h-3"></i> বড় করুন
                     </button>
                     <button type="button" onclick="downloadSceneImage(${scene.id})" class="text-[11px] text-teal-400 hover:underline flex items-center gap-0.5">
                       <i data-lucide="download" class="w-3 h-3"></i> ডাউনলোড
                     </button>
-                  </div>
-                ` : ''}
+                  ` : ''}
+                </div>
               </div>
 
-              <!-- Image Display Frame -->
+              <!-- Media Display Frame -->
               <div class="${aspectClass} bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex items-center justify-center relative mx-auto group">
-                ${scene.imageStatus === 'cooldown' ? `
+                ${scene.videoClipStatus === 'generating' ? `
+                  <div class="p-5 text-center space-y-2">
+                    <div class="w-10 h-10 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center mx-auto text-purple-400 animate-pulse">
+                      <i data-lucide="video" class="w-5 h-5"></i>
+                    </div>
+                    <p class="text-xs text-purple-300 font-semibold">৩ডি মোশন ভিডিও তৈরি হচ্ছে...</p>
+                    <p class="text-[10px] text-slate-400">স্ক্রিপ্ট অনুযায়ী ক্যারেক্টারের হাঁটা-চলা ও অ্যাকশন তৈরি হচ্ছে (৩০-৫০ সেকেন্ড)</p>
+                  </div>
+                ` : (scene.mediaViewMode === 'video' && scene.videoClipUrl) ? `
+                  <video src="${scene.videoClipUrl}" controls autoplay loop muted playsinline class="w-full h-full object-cover rounded-xl"></video>
+                ` : scene.imageStatus === 'cooldown' ? `
                   <div class="p-5 text-center space-y-2.5">
                     <div class="relative w-12 h-12 mx-auto flex items-center justify-center">
                       <div class="absolute inset-0 rounded-full border-2 border-amber-500/30 animate-ping"></div>
@@ -1904,6 +1945,13 @@ function renderVideoScenes() {
                 ` : scene.imageUrl ? `
                   <img src="${scene.imageUrl}" alt="Scene ${pad}" class="w-full h-full object-cover rounded-xl cursor-pointer hover:scale-105 transition-transform duration-300" 
                     onclick="openVideoImageModal('${scene.imageUrl}', 'দৃশ্য #${pad}', 'Scene_${pad}_image.jpg')">
+                ` : scene.videoClipStatus === 'error' ? `
+                  <div class="p-4 text-center space-y-1 text-rose-400">
+                    <i data-lucide="alert-circle" class="w-5 h-5 mx-auto"></i>
+                    <p class="text-xs font-semibold">মোশন ভিডিও ব্যর্থ</p>
+                    <p class="text-[10px] text-slate-400">${escapeHtml(scene.videoClipError || '')}</p>
+                    <button type="button" onclick="generateSceneVideoClip(${scene.id})" class="text-[11px] text-purple-400 underline mt-1">আবার চেষ্টা করুন</button>
+                  </div>
                 ` : scene.imageStatus === 'error' ? `
                   <div class="p-4 text-center space-y-1 text-rose-400">
                     <i data-lucide="alert-circle" class="w-5 h-5 mx-auto"></i>
@@ -1912,12 +1960,17 @@ function renderVideoScenes() {
                     <button type="button" onclick="generateSceneImage(${scene.id})" class="text-[11px] text-indigo-400 underline mt-1">আবার চেষ্টা করুন</button>
                   </div>
                 ` : `
-                  <div class="p-6 text-center space-y-2 text-slate-600">
-                    <i data-lucide="image" class="w-7 h-7 mx-auto stroke-1"></i>
-                    <p class="text-[11px] text-slate-400">ছবি এখনো তৈরি করা হয়নি</p>
-                    <button type="button" onclick="generateSceneImage(${scene.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-1 rounded-lg border border-slate-700 transition">
-                      ছবি জেনারেট
-                    </button>
+                  <div class="p-5 text-center space-y-2 text-slate-600">
+                    <i data-lucide="clapperboard" class="w-7 h-7 mx-auto stroke-1 text-slate-500"></i>
+                    <p class="text-[11px] text-slate-400">মিডিয়া এখনো তৈরি করা হয়নি</p>
+                    <div class="flex items-center justify-center gap-2">
+                      <button type="button" onclick="generateSceneVideoClip(${scene.id})" class="text-[11px] bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 px-2.5 py-1 rounded-lg border border-purple-500/30 transition">
+                        🎬 ৩ডি মোশন
+                      </button>
+                      <button type="button" onclick="generateSceneImage(${scene.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-indigo-300 px-2.5 py-1 rounded-lg border border-slate-700 transition">
+                        ছবি জেনারেট
+                      </button>
+                    </div>
                   </div>
                 `}
               </div>
@@ -2580,6 +2633,127 @@ async function generateSceneBoth(sceneId) {
   ]);
 }
 
+function build3DMotionPrompt(scene) {
+  let core = scene.visualPrompt || smartBengaliSemanticTranslate(scene.text);
+  core = core.replace(/cinematic film still|photorealistic 8k|8k resolution|no text|no watermark|masterpiece|shot on 35mm film|shallow depth of field/gi, '').trim();
+
+  // 3D Motion Video Prompt strictly focused on character action, walking, moving according to script without lip-sync distortion
+  return `3D Pixar animation style, dynamic motion video, vivid 3D CGI character animation, character in physical motion, walking, gesturing and moving according to action: ${core}, natural expressive body movement, moving through environment, rich Blender 3D render, smooth character movement, authentic South Asian Bengali facial features and attire, vibrant lighting, fluid motion, 4k 60fps cinematic video clip`;
+}
+
+async function generateSceneVideoClip(sceneId, isBatch = false) {
+  const scene = videoState.scenes.find(s => s.id === sceneId);
+  if (!scene) return;
+
+  // 1. Ensure prompt translation is ready
+  if (!scene.visualPrompt || !scene.isTranslated || /[\u0980-\u09FF]/.test(scene.visualPrompt) || scene.visualPrompt.startsWith('A cinematic shot depicting:')) {
+    try {
+      const prompt = await translateBengaliToVisualPrompt(scene.text, 'pixar', videoState.aspectRatio);
+      if (prompt) {
+        scene.visualPrompt = prompt;
+        scene.isTranslated = true;
+        const pInput = document.getElementById(`prompt-input-${scene.id}`);
+        if (pInput) pInput.value = scene.visualPrompt;
+      }
+    } catch (e) {
+      scene.visualPrompt = buildVisualPromptFromEnglish(smartBengaliSemanticTranslate(scene.text), 'pixar', videoState.aspectRatio);
+    }
+  }
+
+  scene.videoClipStatus = 'generating';
+  scene.videoClipError = '';
+  scene.mediaViewMode = 'video';
+  renderVideoScenes();
+
+  try {
+    const motionPrompt = build3DMotionPrompt(scene);
+    const cleanPrompt = motionPrompt.replace(/[\r\n"']/g, ' ').replace(/\s+/g, ' ').trim();
+    const seed = Math.floor(Math.random() * 10000000);
+
+    const keys = state.pollinationsKeys && state.pollinationsKeys.length > 0
+      ? state.pollinationsKeys
+      : [DEFAULT_POLLINATIONS_KEY];
+    const totalKeys = keys.length;
+
+    let videoBlob = null;
+    let lastError = null;
+
+    for (let attempt = 0; attempt < totalKeys; attempt++) {
+      const activeKey = getActivePollinationsKey();
+      const keyParam = activeKey ? `&key=${encodeURIComponent(activeKey)}&token=${encodeURIComponent(activeKey)}` : '';
+      const ts = Date.now();
+      const rawUrl = `https://gen.pollinations.ai/video/${encodeURIComponent(cleanPrompt)}?seed=${seed}&duration=4&t=${ts}${keyParam}`;
+      const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(rawUrl)}`;
+
+      try {
+        let resp = null;
+        try {
+          resp = await fetch(proxyUrl);
+        } catch (proxyErr) {
+          console.warn('Proxy video fetch error, trying direct fetch:', proxyErr);
+        }
+
+        if (!resp || !resp.ok) {
+          resp = await fetch(rawUrl, { mode: 'cors' });
+        }
+
+        if (!resp.ok) {
+          throw new Error(`ভিডিও সার্ভার এরর (HTTP ${resp.status})`);
+        }
+
+        const blob = await resp.blob();
+        if (blob && blob.size > 2000) {
+          if (blob.type.includes('json') || blob.type.includes('text')) {
+            const txt = await blob.text();
+            throw new Error(txt || 'ভিডিও তৈরি ব্যর্থ');
+          }
+          videoBlob = blob;
+          break;
+        } else {
+          throw new Error('অপূর্ণাঙ্গ ভিডিও ডাটা প্রাপ্ত হয়েছে');
+        }
+      } catch (err) {
+        lastError = err;
+        console.warn(`[Key #${state.currentPollinationsKeyIndex + 1} Video Error]`, err.message);
+        if (totalKeys > 1 && attempt < totalKeys - 1) {
+          rotateToNextPollinationsKey();
+          showToast(`কী পরিবর্তন করে পুনরায় ৩ডি মোশন চেষ্টা করা হচ্ছে...`, 'info');
+          continue;
+        } else {
+          break;
+        }
+      }
+    }
+
+    if (!videoBlob) {
+      throw (lastError || new Error('৩ডি মোশন ভিডিও তৈরি করা সম্ভব হয়নি।'));
+    }
+
+    if (scene.videoClipUrl) URL.revokeObjectURL(scene.videoClipUrl);
+    scene.videoClipBlob = videoBlob;
+    scene.videoClipUrl = URL.createObjectURL(videoBlob);
+    scene.videoClipStatus = 'ready';
+    scene.mediaViewMode = 'video';
+    renderVideoScenes();
+    showToast(`দৃশ্য #${scene.id}: ৩ডি মোশন ভিডিও ক্লিপ প্রস্তুত!`, 'success');
+
+  } catch (err) {
+    console.error('generateSceneVideoClip error:', err);
+    scene.videoClipStatus = 'error';
+    scene.videoClipError = err.message || 'মোশন ভিডিও তৈরি ব্যর্থ';
+    renderVideoScenes();
+    showToast(`দৃশ্য #${scene.id} ৩ডি মোশন তৈরি ব্যর্থ: ${err.message}`, 'error');
+  }
+}
+
+function setMediaViewMode(sceneId, mode) {
+  const scene = videoState.scenes.find(s => s.id === sceneId);
+  if (scene) {
+    scene.mediaViewMode = mode;
+    renderVideoScenes();
+  }
+}
+
 async function generateAllVideoScenes(mode = 'both') {
   if (videoState.scenes.length === 0) {
     showToast('অনুগ্রহ করে প্রথমে স্ক্রিপ্ট দিয়ে সিন ভাগ করুন।', 'warning');
@@ -2618,6 +2792,11 @@ async function generateAllVideoScenes(mode = 'both') {
         tasks.push(generateSceneImage(scene.id, true));
       }
     }
+    if (mode === 'motion') {
+      if (!scene.videoClipBlob || scene.videoClipStatus === 'error') {
+        tasks.push(generateSceneVideoClip(scene.id, true));
+      }
+    }
 
     if (tasks.length > 0) {
       await Promise.all(tasks);
@@ -2646,6 +2825,9 @@ function updateVideoControlsUI() {
     elements.videoGenerateAllBothBtn.disabled = isRunning;
     elements.videoGenerateAllBothBtn.classList.toggle('opacity-50', isRunning);
   }
+  if (elements.videoGenerateAllMotionBtn) {
+    elements.videoGenerateAllMotionBtn.disabled = isRunning;
+  }
   if (elements.videoGenerateAllImageBtn) {
     elements.videoGenerateAllImageBtn.disabled = isRunning;
   }
@@ -2653,11 +2835,11 @@ function updateVideoControlsUI() {
     elements.videoGenerateAllAudioBtn.disabled = isRunning;
   }
   if (elements.videoDownloadZipBtn) {
-    const hasWork = videoState.scenes.some(s => s.audioBlob || s.imageUrl);
+    const hasWork = videoState.scenes.some(s => s.audioBlob || s.imageUrl || s.videoClipBlob);
     elements.videoDownloadZipBtn.disabled = !hasWork || isRunning;
   }
   if (elements.videoRenderFullMp4Btn) {
-    const canRender = videoState.scenes.some(s => (s.audioBlob || s.audioUrl) && (s.imageBlob || s.imageUrl));
+    const canRender = videoState.scenes.some(s => (s.audioBlob || s.audioUrl) && (s.imageBlob || s.imageUrl || s.videoClipBlob || s.videoClipUrl));
     elements.videoRenderFullMp4Btn.disabled = !canRender || isRunning;
   }
 }
@@ -2668,7 +2850,7 @@ async function downloadVideoZip() {
     return;
   }
 
-  const hasItems = videoState.scenes.some(s => s.audioBlob || s.imageUrl);
+  const hasItems = videoState.scenes.some(s => s.audioBlob || s.imageUrl || s.videoClipBlob || s.videoClipUrl);
   if (!hasItems) {
     showToast('ডাউনলোড করার মত অডিও বা ছবি এখনও নেই।', 'warning');
     return;
@@ -2678,9 +2860,10 @@ async function downloadVideoZip() {
 
   try {
     const zip = new JSZip();
-    // Create two separate clean subfolders: Images and Audios (No text files)
+    // Create separate clean subfolders: Images, Audios, and MotionVideos
     const imageFolder = zip.folder('Images');
     const audioFolder = zip.folder('Audios');
+    const motionFolder = zip.folder('MotionVideos');
     let count = 0;
 
     for (let idx = 0; idx < videoState.scenes.length; idx++) {
@@ -2704,6 +2887,12 @@ async function downloadVideoZip() {
           imageFolder.file(`Scene_${pad}.jpg`, blob);
           count++;
         }
+      }
+
+      // Add 3D motion video clip to MotionVideos folder
+      if (scene.videoClipBlob) {
+        motionFolder.file(`Scene_${pad}_motion.mp4`, scene.videoClipBlob);
+        count++;
       }
     }
 
@@ -2743,6 +2932,8 @@ async function downloadVideoZip() {
 window.generateSceneBoth = generateSceneBoth;
 window.generateSceneImage = generateSceneImage;
 window.generateSceneAudio = generateSceneAudio;
+window.generateSceneVideoClip = generateSceneVideoClip;
+window.setMediaViewMode = setMediaViewMode;
 
 window.updateVideoSceneText = async function(id, newText) {
   const scene = videoState.scenes.find(s => s.id === id);
@@ -2989,9 +3180,9 @@ window.previewAmbientSound = function() {};
 async function startVideoRendering() {
   if (videoState.isRenderingVideo) return;
 
-  const validScenes = videoState.scenes.filter(s => (s.audioBlob || s.audioUrl) && (s.imageBlob || s.imageUrl));
+  const validScenes = videoState.scenes.filter(s => (s.audioBlob || s.audioUrl) && (s.imageBlob || s.imageUrl || s.videoClipBlob || s.videoClipUrl));
   if (validScenes.length === 0) {
-    showToast('ভিডিও বানানোর জন্য অন্তত একটি দৃশ্যের অডিও ও ছবি জেনারেট থাকতে হবে। "🎬 ভিডিও ও অডিও জেনারেট" বাটনে ক্লিক করুন।', 'warning');
+    showToast('ভিডিও বানানোর জন্য অন্তত একটি দৃশ্যের অডিও এবং ছবি বা মোশন ভিডিও থাকতে হবে। "🎬 ভিডিও ও অডিও জেনারেট" বাটনে ক্লিক করুন।', 'warning');
     return;
   }
 
@@ -3029,6 +3220,7 @@ async function startVideoRendering() {
 
   let audioCtx = null;
   let recorder = null;
+  const activeVideoElements = [];
 
   try {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -3037,7 +3229,7 @@ async function startVideoRendering() {
       await audioCtx.resume();
     }
 
-    // Step 1: Preload images & ensure mixed audio buffer (Voice + Matching Music)
+    // Step 1: Preload 3D motion videos, images & pure studio voice audio
     const preloaded = [];
     for (let i = 0; i < validScenes.length; i++) {
       if (renderCancelled) break;
@@ -3047,7 +3239,30 @@ async function startVideoRendering() {
         if (window.lucide) window.lucide.createIcons();
       }
 
-      // Preload Image
+      // Preload 3D Motion Video Clip if present
+      let videoEl = null;
+      if (scene.videoClipBlob || scene.videoClipUrl) {
+        try {
+          const vUrl = scene.videoClipUrl || URL.createObjectURL(scene.videoClipBlob);
+          videoEl = document.createElement('video');
+          videoEl.src = vUrl;
+          videoEl.muted = true;
+          videoEl.playsInline = true;
+          videoEl.loop = true;
+          videoEl.crossOrigin = 'anonymous';
+          await new Promise((resolve) => {
+            videoEl.onloadeddata = () => resolve();
+            videoEl.onerror = () => resolve();
+            setTimeout(resolve, 6000);
+          });
+          try { await videoEl.play(); } catch (e) {}
+          activeVideoElements.push(videoEl);
+        } catch (vErr) {
+          console.warn(`Scene ${scene.id} video preload warning:`, vErr);
+        }
+      }
+
+      // Preload Image (used if no video clip exists)
       let img = null;
       try {
         let imgBlob = scene.imageBlob;
@@ -3078,10 +3293,11 @@ async function startVideoRendering() {
         }
       }
 
-      preloaded.push({ scene, img, audioBuffer, duration });
+      preloaded.push({ scene, img, videoEl, audioBuffer, duration });
     }
 
     if (renderCancelled) {
+      activeVideoElements.forEach(v => { try { v.pause(); v.src = ''; } catch (e) {} });
       cleanupRender(audioCtx);
       return;
     }
@@ -3168,19 +3384,25 @@ async function startVideoRendering() {
         const sceneDuration = Math.max(0.1, cur.duration);
         const p = Math.min(1.0, Math.max(0.0, (elapsed - cur.startTime) / sceneDuration));
 
-        // Ken Burns motion: gentle zoom & pan
+        // Ken Burns motion for still images: gentle zoom & pan
         const isEven = cur.scene.id % 2 === 0;
         const zoom = isEven ? (1.0 + p * 0.12) : (1.12 - p * 0.12);
         const panX = isEven ? ((p - 0.5) * 36) : ((0.5 - p) * 36);
         const panY = isEven ? ((p - 0.5) * 18) : ((0.5 - p) * 18);
 
-        // Draw background & transformed image
+        // Draw background & media (3D Motion Video or Image)
         ctx.save();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = '#090d16';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        if (cur.img) {
+        if (cur.videoEl && cur.videoEl.readyState >= 2) {
+          try {
+            const vDur = cur.videoEl.duration || 4.0;
+            cur.videoEl.currentTime = (elapsed - cur.startTime) % vDur;
+          } catch (e) {}
+          drawImageCover(ctx, cur.videoEl, 0, 0, canvas.width, canvas.height);
+        } else if (cur.img) {
           ctx.translate(canvas.width / 2, canvas.height / 2);
           ctx.scale(zoom, zoom);
           ctx.translate(-canvas.width / 2 + panX, -canvas.height / 2 + panY);
@@ -3188,25 +3410,7 @@ async function startVideoRendering() {
         }
         ctx.restore();
 
-        // Cinematic bottom vignette for subtitle readability
-        const vignetteH = Math.min(160, canvas.height * 0.28);
-        const grad = ctx.createLinearGradient(0, canvas.height - vignetteH, 0, canvas.height);
-        grad.addColorStop(0, 'rgba(0,0,0,0)');
-        grad.addColorStop(1, 'rgba(0,0,0,0.85)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, canvas.height - vignetteH, canvas.width, vignetteH);
-
-        // Bengali subtitle caption
-        if (cur.scene.text) {
-          ctx.fillStyle = '#ffffff';
-          const fontSize = canvas.width > 800 ? 24 : 18;
-          ctx.font = `600 ${fontSize}px 'Hind Siliguri', 'Noto Sans Bengali', sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-          ctx.shadowBlur = 10;
-          drawWrappedText(ctx, cur.scene.text, canvas.width / 2, canvas.height - (fontSize * 1.8), canvas.width - 80, fontSize * 1.35);
-          ctx.shadowBlur = 0;
-        }
+        // Subtitles and vignette removed as per user instruction (Clean crystal video without text overlays)
 
         // Update progress bar
         const overallPercent = Math.min(100, Math.round((elapsed / totalDuration) * 100));
@@ -3219,6 +3423,8 @@ async function startVideoRendering() {
 
       await new Promise(r => setTimeout(r, frameIntervalMs));
     }
+
+    activeVideoElements.forEach(v => { try { v.pause(); v.src = ''; } catch (e) {} });
 
     if (renderCancelled) {
       if (recorder && recorder.state !== 'inactive') recorder.stop();
@@ -3268,6 +3474,7 @@ async function startVideoRendering() {
     recorder.stop();
 
   } catch (err) {
+    activeVideoElements.forEach(v => { try { v.pause(); v.src = ''; } catch (e) {} });
     console.error('Video render error:', err);
     showToast('ভিডিও রেন্ডারিংয়ে সমস্যা হয়েছে: ' + err.message, 'error');
     cleanupRender(audioCtx);
