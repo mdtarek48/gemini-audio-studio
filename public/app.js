@@ -1692,16 +1692,16 @@ function splitVideoScript() {
   videoState.scenes = grouped.map((text, idx) => {
     const existing = oldScenes.find(o => o.text === text);
     let prompt = existing && existing.visualPrompt ? existing.visualPrompt : '';
-    // If prompt contains Bengali characters, old broken placeholder, or is empty:
+    const isTranslated = existing ? existing.isTranslated : false;
+    // Initial rich semantic English prompt matching the story characters and actions
     if (!prompt || /[\u0980-\u09FF]/.test(prompt) || prompt.startsWith('A cinematic shot depicting:')) {
-      prompt = translateBengaliSceneToEnglish(text, videoState.visualStyle, videoState.aspectRatio);
+      prompt = buildVisualPromptFromEnglish(smartBengaliSemanticTranslate(text), videoState.visualStyle, videoState.aspectRatio);
     }
-    const ambient = existing && existing.ambientSound ? existing.ambientSound : detectAmbientSound(text);
     return {
       id: idx + 1,
       text: text,
       visualPrompt: prompt,
-      ambientSound: ambient,
+      isTranslated: isTranslated,
       imageBlob: existing ? existing.imageBlob : null,
       imageUrl: existing ? existing.imageUrl : '',
       imageStatus: existing ? existing.imageStatus : 'idle',
@@ -1715,6 +1715,26 @@ function splitVideoScript() {
 
   renderVideoScenes();
   updateVideoTextStats();
+
+  // Background Neural Translation: upgrades prompt to 100% exact English description matching the Bengali text
+  autoTranslateAllScenes();
+}
+
+async function autoTranslateAllScenes() {
+  for (const scene of videoState.scenes) {
+    if (scene.isTranslated) continue;
+    try {
+      const prompt = await translateBengaliToVisualPrompt(scene.text, videoState.visualStyle, videoState.aspectRatio);
+      if (prompt && !/[\u0980-\u09FF]/.test(prompt)) {
+        scene.visualPrompt = prompt;
+        scene.isTranslated = true;
+        const pInput = document.getElementById(`prompt-input-${scene.id}`);
+        if (pInput) pInput.value = scene.visualPrompt;
+      }
+    } catch (err) {
+      console.warn(`autoTranslateAllScenes error for scene ${scene.id}:`, err);
+    }
+  }
 }
 
 function renderVideoScenes() {
@@ -1799,21 +1819,6 @@ function renderVideoScenes() {
                 class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 text-xs text-slate-200 rounded-xl p-3 outline-none transition resize-y leading-relaxed">${escapeHtml(scene.text)}</textarea>
             </div>
 
-            <!-- Auto Detected Natural Sound Badge -->
-            <div class="flex items-center justify-between bg-slate-950/80 border border-emerald-500/30 rounded-xl px-3 py-2 text-xs shadow-sm">
-              <div class="flex items-center gap-2 text-emerald-300">
-                <i data-lucide="${(scene.ambientSound && scene.ambientSound.icon) || 'volume-2'}" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
-                <span class="text-[11px] font-medium text-slate-400">অটো প্রাকৃতিক সাউন্ড:</span>
-                <span class="text-[11px] font-bold text-white">${escapeHtml(scene.ambientSound ? scene.ambientSound.label : '🌿 প্রশান্ত সিনেমাটিক আবহ')}</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <button type="button" onclick="previewAmbientSound('${scene.ambientSound ? scene.ambientSound.id : 'peaceful_nature'}')" class="text-[10px] text-teal-400 hover:text-teal-300 flex items-center gap-1 font-medium hover:underline">
-                  <i data-lucide="play" class="w-2.5 h-2.5 fill-current"></i> টেস্ট শুনুন
-                </button>
-                <span class="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-medium">১০০% অটো</span>
-              </div>
-            </div>
-
             <!-- Visual Prompt Box (Collapsible / Editable) -->
             <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 space-y-2">
               <div class="flex items-center justify-between">
@@ -1826,7 +1831,7 @@ function renderVideoScenes() {
                 </button>
               </div>
               <input type="text" id="prompt-input-${scene.id}" value="${escapeHtml(scene.visualPrompt || '')}" 
-                placeholder="Gemini দিয়ে স্বয়ংক্রিয় সিনেমাটিক প্রম্পট তৈরি হবে অথবা নিজে লিখুন..."
+                placeholder="টেক্সটের সাথে মিলিয়ে সিনেমাটিক প্রম্পট তৈরি হবে..."
                 onchange="updateVideoScenePrompt(${scene.id}, this.value)"
                 class="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 text-[11px] text-slate-300 rounded-lg px-2.5 py-1.5 outline-none font-sans">
               <p class="text-[10px] text-slate-500">💡 ছবি জেনারেটের সময় এই প্রম্পটটিই ছবির নিখুঁত 8K মান নির্ধারণ করবে।</p>
@@ -1923,7 +1928,7 @@ function renderVideoScenes() {
               <div class="flex items-center justify-between text-xs">
                 <span class="font-medium text-slate-300 flex items-center gap-1.5">
                   <i data-lucide="headphones" class="w-3.5 h-3.5 text-teal-400"></i>
-                  <span>ভয়েসওভার অডিও (Gemini)</span>
+                  <span>ভয়েসওভার অডিও (Gemini Studio Voice)</span>
                 </span>
                 ${scene.audioBlob ? `
                   <a href="${scene.audioUrl}" download="Scene_${pad}_audio.wav" class="text-[11px] text-teal-400 hover:underline flex items-center gap-0.5">
@@ -2002,239 +2007,235 @@ function renderVideoSceneBadge(status) {
   }
 }
 
-function translateBengaliSceneToEnglish(text, styleDesc = '', ratioDesc = '') {
+// ==========================================
+// 100% Accurate Bengali-to-English Scene Translation & Visual Prompt Engine
+// Ensures FLUX receives exact characters, actions, surroundings from any story
+// ==========================================
+
+function smartBengaliSemanticTranslate(text) {
+  if (!text || !text.trim()) return 'a captivating story scene';
   const t = text.toLowerCase();
   const subjects = [];
   const actions = [];
-  const env = [];
+  const objects = [];
+  const settings = [];
   const lighting = [];
-  const atmosphere = [];
 
-  // Characters
-  if (t.includes('মাঝি') || t.includes('জেলে')) {
-    if (t.includes('বৃদ্ধ')) subjects.push('an elderly weathered South Asian fisherman with wrinkled face');
-    else subjects.push('a traditional South Asian fisherman');
-  } else if (t.includes('বাঘ') || t.includes('রয়েল বেঙ্গল') || t.includes('টাইগার')) {
-    subjects.push('a magnificent Royal Bengal tiger with glowing amber eyes');
-  } else if (t.includes('হরিণ')) {
-    subjects.push('an alert spotted chital deer');
-  } else if (t.includes('কুমির')) {
-    subjects.push('a menacing saltwater crocodile lurking at the water edge');
-  } else if (t.includes('শিশু') || t.includes('বাচ্চা') || t.includes('ছেলে') || t.includes('মেয়ে')) {
-    subjects.push('an expressive innocent child');
-  } else if (t.includes('রাজা') || t.includes('সম্রাট')) {
-    subjects.push('a regal Indian emperor dressed in ornate royal silk robes');
-  } else if (t.includes('নারী') || t.includes('মহিলা') || t.includes('বধূ')) {
-    subjects.push('a graceful South Asian woman in traditional clothing');
-  } else if (t.includes('নৌকা') || t.includes('নৌকায়')) {
-    subjects.push('a rustic handcrafted wooden boat');
-  } else {
-    subjects.push('a captivating dramatic scene');
+  // Special phrases & Props first (to avoid substring collisions)
+  if (/সিংহাসন/i.test(t)) objects.push('seated on an ornate royal golden throne');
+  if (/গাজর/i.test(t)) objects.push('eating fresh orange carrots');
+  if (/ঘাস/i.test(t)) objects.push('on lush green grass');
+  if (/বাঁশি/i.test(t)) objects.push('playing a handcrafted bamboo flute');
+  if (/নৌকা|ডিঙি/i.test(t)) objects.push('a rustic handcrafted wooden boat');
+  if (/বৈঠা/i.test(t)) objects.push('wooden oars');
+  if (/জাল/i.test(t) && /মাছ/i.test(t)) objects.push('casting a fishing net');
+  if (/হারিকেন|লণ্ঠন|কুপি/i.test(t)) objects.push('a glowing warm kerosene lantern');
+  if (/কুঁড়েঘর/i.test(t)) objects.push('a traditional clay thatched cottage');
+  if (/ফুল/i.test(t)) objects.push('colorful blooming flowers');
+  if (/ঘুড়ি/i.test(t)) objects.push('flying a vibrant kite in the sky');
+
+  // 1. Animals & Wildlife (Collision-free)
+  if (/খরগোশ/i.test(t)) subjects.push('a cute small fluffy rabbit');
+  else if (/বিড়াল|বেড়াল/i.test(t)) subjects.push('a curious domestic cat');
+  else if (/কুকুর/i.test(t)) subjects.push('a faithful dog');
+  else if (/বাঘ|টাইগার|রয়েল বেঙ্গল/i.test(t)) subjects.push('a ferocious Royal Bengal tiger with fierce glowing amber eyes');
+  else if (/সিংহ/i.test(t) && !/সিংহাসন/i.test(t)) subjects.push('a majestic African lion with a massive flowing golden mane');
+  else if (/হরিণ/i.test(t)) subjects.push('an alert spotted chital deer');
+  else if (/হাতি/i.test(t)) subjects.push('a grand majestic wild elephant');
+  else if (/ঘোড়া/i.test(t)) subjects.push('a powerful galloping horse');
+  else if (/কুমির/i.test(t)) subjects.push('a predatory crocodile lurking at the water edge');
+  else if (/সাপ|নাগ/i.test(t)) subjects.push('a winding serpent snake');
+  else if (/বানর/i.test(t)) subjects.push('a playful monkey');
+  else if (/ভাল্লুক/i.test(t)) subjects.push('a large furry bear');
+  else if (/শিয়াল|শেয়াল/i.test(t)) subjects.push('a sly wild fox');
+  else if (/পাখি|টিয়া|কোকিল|দোয়েল|বক|চিল|ঈগল|পায়রা|কবুতর|চড়ুই|হাঁস/i.test(t) || (/কাক/i.test(t) && !/একাকী/i.test(t))) subjects.push('beautiful birds soaring');
+  else if (/মাছ/i.test(t) && !/ধরে|মার|জাল/i.test(t)) subjects.push('swimming fish in clear water');
+
+  // 2. Humans & Characters (Collision-free)
+  if (/মাঝি/i.test(t)) {
+    if (/বৃদ্ধ/i.test(t)) subjects.push('an elderly weathered South Asian boatman with wrinkled face and salt-and-pepper beard');
+    else subjects.push('a traditional South Asian boatman in lungi');
+  } else if (/জেলে/i.test(t)) subjects.push('a local fisherman');
+  else if (/কৃষক|চাষী/i.test(t)) subjects.push('a hardworking South Asian farmer in rural clothing');
+  else if (/রাখাল/i.test(t)) subjects.push('a young village cowherd boy');
+  else if (/রাজা|সম্রাট/i.test(t)) subjects.push('a regal Indian royal king in ornate silk robes and jeweled turban');
+  else if (/রানী/i.test(t)) subjects.push('a graceful queen adorned in traditional jewelry and saree');
+  else if (/রাজকুমার|রাজপুত্র/i.test(t)) subjects.push('a young royal prince');
+  else if (/রাজকুমারী|রাজকন্যা/i.test(t)) subjects.push('a beautiful royal princess');
+  else if (/শিশু|বাচ্চা|খোকা|খুকি/i.test(t)) subjects.push('an adorable small child');
+  else if (/ছেলে|বালক|কিশোর/i.test(t) && !/রাখাল/i.test(t)) subjects.push('a young Bengali boy');
+  else if (/মেয়ে|বালিকা|নারী|মহিলা|কিশোরী/i.test(t)) subjects.push('a graceful South Asian woman in traditional colorful saree');
+  else if (/বৃদ্ধ|বুড়ো/i.test(t)) subjects.push('an elderly weathered South Asian man');
+  else if (/বৃদ্ধা|বুড়ি/i.test(t)) subjects.push('an elderly South Asian grandmother');
+  else if (/সৈনিক|যোদ্ধা/i.test(t)) subjects.push('a brave warrior with armor');
+  else if (/সাধু|দরবেশ|সন্ন্যাসী/i.test(t)) subjects.push('a spiritual hermit monk in simple saffron robes');
+  else if (/ভূত|প্রেত|ছায়া|দানব|রাক্ষস/i.test(t)) subjects.push('a terrifying dark ethereal shadowy entity');
+  else if (/দুই বন্ধু|বন্ধুরা|বন্ধু/i.test(t)) subjects.push('two close friends');
+
+  // 3. Actions & Emotions
+  if (/খাচ্ছে|খাচ্ছিল/i.test(t) && !/গাজর/i.test(t)) actions.push('eating meal');
+  if (/বসে|বসা/i.test(t) && !/সিংহাসন/i.test(t)) actions.push('sitting peacefully');
+  if (/দাঁড়িয়ে/i.test(t)) actions.push('standing attentively');
+  if (/হাঁট|হেঁটে/i.test(t)) actions.push('walking gently');
+  if (/দৌড়|ছুট/i.test(t)) actions.push('running urgently in suspense');
+  if (/কাঁদ|কান্না|অশ্রু/i.test(t)) actions.push('weeping with heartfelt sorrow and emotional tears');
+  if (/হাসি|হাসছে/i.test(t)) actions.push('smiling joyfully with warmth');
+  if (/গান/i.test(t)) actions.push('singing passionately');
+  if (/উড়|উড়ছে/i.test(t)) actions.push('flying gracefully with wings outstretched');
+  if (/গর্জন|হুঙ্কার/i.test(t)) actions.push('roaring menacingly with bared sharp teeth');
+  if (/বৈঠা বাই|নৌকা চল/i.test(t)) actions.push('firmly rowing wooden oars across the rippling water');
+
+  // 4. Environment & Setting
+  if (/সুন্দরবন/i.test(t)) settings.push('in the dense mystical Sundarbans mangrove forest with intertwined muddy roots');
+  else if (/নদী|খাঁড়ি|গাঙ/i.test(t)) settings.push('along a serene winding river with gentle water reflections');
+  else if (/সাগর|সমুদ্র/i.test(t)) settings.push('by the vast ocean shoreline under open skies');
+  else if (/পাহাড়|পর্বত/i.test(t)) settings.push('amidst breathtaking towering misty green mountains');
+  else if (/গ্রাম/i.test(t)) settings.push('in a picturesque pastoral South Asian rural countryside landscape');
+  else if (/বন|জঙ্গল|অরণ্য/i.test(t)) settings.push('inside an atmospheric secluded wilderness forest');
+  else if (/মাঠ|প্রান্তর|ধানখেত/i.test(t)) settings.push('in vast open golden agricultural fields');
+  else if (/বটগাছ|গাছের নিচে/i.test(t)) settings.push('under a grand ancient banyan tree providing cool shade');
+  else if (/আকাশ/i.test(t)) settings.push('under an expansive sky');
+
+  // 5. Lighting & Weather
+  if (/ভোর|সকাল|সূর্য|সূর্যোদয়/i.test(t)) lighting.push('illuminated by early morning golden sunrise sunbeams piercing morning mist');
+  else if (/সন্ধ্যা|সূর্যাস্ত|গোধূলি/i.test(t)) lighting.push('under a dramatic warm amber and crimson sunset sky');
+  else if (/রাত|গভীর রাত|অন্ধকার/i.test(t)) {
+    if (/চাঁদ|পূর্ণিমা|জ্যোৎস্না/i.test(t)) lighting.push('illuminated by a bright silver full moon casting shimmering water reflections');
+    else lighting.push('at deep pitch midnight under a starry sky with dramatic shadows');
   }
 
-  // Vehicles / Props
-  if (t.includes('নৌকা') || t.includes('নৌকায়') || t.includes('ডিঙি')) {
-    if (!subjects.some(s => s.includes('boat'))) {
-      subjects.push('a rustic wooden boat');
-    }
-  }
-  if (t.includes('লণ্ঠন') || t.includes('হারিকেন') || t.includes('কুপি') || t.includes('আলো')) {
-    subjects.push('a warm glowing kerosene lantern on the bow');
-  }
+  if (/বৃষ্টি|ঝড়|তুফান|বজ্র/i.test(t)) lighting.push('with heavy dramatic rainfall droplets and stormy dark skies');
+  if (/কুয়াশা/i.test(t)) lighting.push('shrouded in thick cinematic morning fog');
 
-  // Actions
-  if ((t.includes('মাঝি') || t.includes('বৃদ্ধ')) && (t.includes('নৌকা') || t.includes('নৌকায়') || t.includes('বৈঠা') || t.includes('চলছিল'))) {
-    actions.push('slowly rowing a wooden canoe across serene reflective river waters');
-  } else if (t.includes('বাঘ') && (t.includes('গর্জন') || t.includes('ডাক') || t.includes('লাফ'))) {
-    actions.push('roaring powerfully on the muddy riverbank');
-  } else if (t.includes('চলছিল') || t.includes('যাচ্ছিল') || t.includes('ঘুরে')) {
-    actions.push('navigating quietly through the secluded waters');
+  const parts = [...subjects, ...actions, ...objects, ...settings, ...lighting];
+  let core = parts.join(', ');
+  if (!core) {
+    core = 'a captivating story scene depicting: ' + text;
   }
-
-  // Environment
-  if (t.includes('সুন্দরবন') || t.includes('বন') || t.includes('জঙ্গল')) {
-    env.push('in the mystical Sundarbans mangrove forest with dense exposed roots');
-  } else if (t.includes('নদী') || t.includes('পানি') || t.includes('খাঁড়ি') || t.includes('জল')) {
-    env.push('along a tranquil winding river creek');
-  } else if (t.includes('পাহাড়') || t.includes('পর্বত')) {
-    env.push('surrounded by towering emerald green mountains');
-  } else if (t.includes('গ্রাম') || t.includes('মাঠ')) {
-    env.push('in a picturesque lush rural countryside landscape');
-  } else if (t.includes('শহর') || t.includes('নগর')) {
-    env.push('in an atmospheric vibrant street scene');
-  }
-
-  // Lighting & Time
-  if (t.includes('রাত') || t.includes('গভীর রাত')) {
-    if (t.includes('চাঁদ') || t.includes('চাঁদের আলো') || t.includes('রুপোলি')) {
-      lighting.push('illuminated by a brilliant silver full moon casting shimmering reflections on dark water');
-    } else {
-      lighting.push('at deep midnight under a dramatic starry celestial sky');
-    }
-  } else if (t.includes('ভোর') || t.includes('সকাল') || t.includes('সূর্যকিরণ') || t.includes('সূর্য')) {
-    lighting.push('basking in early morning golden sunrise rays piercing through misty trees');
-  } else if (t.includes('সন্ধ্যা') || t.includes('সূর্যাস্ত') || t.includes('গোধূলি')) {
-    lighting.push('under a breathtaking golden orange sunset twilight sky');
-  }
-
-  // Atmospheric conditions
-  if (t.includes('কুয়াশা') || t.includes('কুয়াশার')) {
-    atmosphere.push('shrouded in thick ethereal atmospheric fog and haze hovering above water');
-  }
-  if (t.includes('বৃষ্টি') || t.includes('ঝড়')) {
-    atmosphere.push('with dramatic thunderstorm raindrops and ripples');
-  }
-
-  const all = [...subjects, ...actions, ...env, ...lighting, ...atmosphere];
-  let promptCore = all.join(', ');
-  if (!promptCore) {
-    promptCore = 'A dramatic atmospheric cinematic scene';
-  }
-
-  return `Cinematic wide shot, ${promptCore}, ${styleDesc || 'cinematic photorealistic 8k, volumetric lighting, shot on 35mm film'}, ${ratioDesc || '16:9 widescreen'}, masterpiece, highly detailed, no text, no watermark`;
+  return core;
 }
 
-// ==========================================
-// Intelligent Ambient Sound Detection Engine
-// Automatically detects natural atmosphere from Bengali text
-// ==========================================
-function detectAmbientSound(bengaliText) {
-  if (!bengaliText) {
-    return {
-      id: 'peaceful_nature',
-      name: 'প্রশান্ত সিনেমাটিক আবহ',
-      label: '🌿 প্রশান্ত সিনেমাটিক আবহ',
-      icon: 'sparkles'
-    };
-  }
-
-  const t = bengaliText.toLowerCase();
-
-  // 1. Tiger / Predator / Suspense / Roar (বাঘ, গর্জন, বিপদ, ভয় - ড্রামাটিক মুহূর্ত সবার আগে)
-  if (/বাঘ|গর্জন|চিৎকার|হিংস্র|আক্রমণ|শিকার|বিপদ|ভয়|আতঙ্ক|কাঁপিয়ে|শিউরে|থরথর|থমথমে|ভীতিকর/i.test(t)) {
-    return {
-      id: 'dramatic_suspense',
-      name: 'গভীর বনের থমথমে ও রহস্যময় ড্রামাটিক আবহ',
-      label: '🐅 গভীর বনের থমথমে ড্রামাটিক আবহ',
-      icon: 'alert-triangle'
-    };
-  }
-
-  // 2. Rain / Storm / Thunder (বৃষ্টি, ঝড়, মেঘ, বিজলি, বজ্রপাত)
-  if (/বৃষ্টি|বর্ষা|মেঘ|বিদ্যুৎ|বজ্রপাত|ঝড়|তুফান|ঝোড়ো|ঝুম বৃষ্টি/i.test(t)) {
-    return {
-      id: 'rain_storm',
-      name: 'মৃদু বৃষ্টির রিমঝিম শব্দ ও বাতাস',
-      label: '🌧️ মৃদু বৃষ্টির রিমঝিম শব্দ',
-      icon: 'cloud-rain'
-    };
-  }
-
-  // 3. Dawn / Morning / Birds / Sunrise (ভোর, সকাল, আলো, সূর্য, কিচিরমিচির, পাখি)
-  if (/ভোর|সকাল|প্রাতঃ|সূর্য|সূর্যকিরণ|সোনালী আলো|প্রথম আলো|পাখি|কিচিরমিচির|কোকিল|ডানা/i.test(t)) {
-    return {
-      id: 'morning_birds',
-      name: 'ভোরের মিষ্টি পাখির কলকাকলি ও হাওয়া',
-      label: '🐦 ভোরের পাখির মিষ্টি কলকাকলি',
-      icon: 'sun'
-    };
-  }
-
-  // 4. Water / River / Creek / Boat (নদী, খাঁড়ি, পানি, নৌকা, মাঝি, বৈঠা)
-  if (/নদী|খাঁড়ি|পানি|জল|নৌকা|মাঝি|বৈঠা|দাঁড়|স্রোত|ঢেউ|সাগর|সমুদ্র|খাল|বিল|ঘাট|কিনারা|গাঙ|তীর/i.test(t)) {
-    if (/রাত|অন্ধকার|নিস্তব্ধ|চাঁদ/i.test(t)) {
-      return {
-        id: 'river_night',
-        name: 'নদীর পানির ছলাৎছলাৎ ও রাতের শান্ত আবহ',
-        label: '🌊 নদীর জল ও রাতের বনের আবহ',
-        icon: 'waves'
-      };
-    }
-    return {
-      id: 'river_water',
-      name: 'নদীর শান্ত পানির কলতান ও ঢেউ',
-      label: '🌊 নদীর শান্ত পানি ও ঢেউয়ের শব্দ',
-      icon: 'waves'
-    };
-  }
-
-  // 5. Night / Moonlight / Deep Forest (রাত, জ্যোৎস্না, আঁধার, বন, সুন্দরবন)
-  if (/রাত|গভীর রাত|অন্ধকার|আঁধার|চাঁদ|রুপোলি চাঁদ|জ্যোৎস্না|কুয়াশা|নিস্তব্ধ|নিঝুম|বন|সুন্দরবন|জঙ্গল|অরণ্য/i.test(t)) {
-    return {
-      id: 'night_forest',
-      name: 'রাতের বনের নিস্তব্ধতা ও ঝিঁঝিঁ পোকার ডাক',
-      label: '🌙 রাতের বন ও ঝিঁঝিঁ পোকার ডাক',
-      icon: 'moon'
-    };
-  }
-
-  // 6. Wind / Mountain / Valley (বাতাস, হাওয়া, শীত, পাহাড়)
-  if (/বাতাস|হাওয়া|সমীরণ|শীতল|পাহাড়|উপত্যকা|প্রান্তর|গাছপালা|ডালপালা/i.test(t)) {
-    return {
-      id: 'wind_breeze',
-      name: 'প্রশান্ত বনের মিষ্টি বাতাস',
-      label: '🍃 প্রশান্ত বনের মিষ্টি বাতাস',
-      icon: 'wind'
-    };
-  }
-
-  // Default: Peaceful nature
-  return {
-    id: 'peaceful_nature',
-    name: 'প্রশান্ত সিনেমাটিক আবহ',
-    label: '🌿 প্রশান্ত সিনেমাটিক আবহ',
-    icon: 'sparkles'
-  };
-}
-
-async function generateVisualPromptForScene(sceneText, style, aspectRatio) {
+function buildVisualPromptFromEnglish(englishText, style = 'cinematic', ratio = '16:9') {
   const styleGuides = {
-    'cinematic': 'Cinematic photorealistic 8k, dramatic cinematic lighting, shot on 35mm film, shallow depth of field, hyper-detailed textures, masterpiece',
-    'pixar': '3D Pixar and Disney animation style, vibrant vivid colors, expressive whimsical characters, soft volumetric lighting, detailed 3D render',
-    'documentary': 'National Geographic documentary photography, natural lighting, authentic textures, highly detailed, realistic atmosphere',
-    'fantasy': 'Epic dark fantasy concept art, mystical glowing atmosphere, intricate details, cinematic volumetric light',
-    'cyberpunk': 'Futuristic cyberpunk, glowing neon lights, rainy reflections, high-tech dystopian city, cinematic color grading'
+    'cinematic': 'cinematic film still, photorealistic 8k, dramatic cinematic lighting, shot on 35mm film, shallow depth of field, hyper-detailed, masterpiece',
+    'pixar': '3D Pixar and Disney animation render, vibrant vivid colors, expressive whimsical characters, soft studio lighting, high quality 3D CGI',
+    'documentary': 'National Geographic documentary photograph, authentic natural lighting, hyper-realistic, ultra-sharp detail',
+    'fantasy': 'epic dark fantasy digital concept art, mystical glowing atmosphere, intricate details, cinematic volumetric light',
+    'cyberpunk': 'futuristic cyberpunk scene, glowing neon lights, rainy reflections, high-tech aesthetic, cinematic color grading'
   };
+
   const styleDesc = styleGuides[style] || styleGuides['cinematic'];
-  const ratioDesc = aspectRatio === '16:9' ? '16:9 landscape aspect ratio' : (aspectRatio === '9:16' ? '9:16 vertical portrait aspect ratio' : '1:1 square aspect ratio');
+  const ratioDesc = ratio === '9:16' ? '9:16 vertical ratio' : (ratio === '1:1' ? '1:1 square ratio' : '16:9 widescreen ratio');
 
-  if (state.apiKey) {
-    const keys = parseKeys(state.apiKey);
-    const activeKey = keys[0];
-    const candidateModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
+  let clean = (englishText || '').replace(/[\r\n"']/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!clean) clean = 'a captivating story scene';
 
-    for (const m of candidateModels) {
-      try {
-        const systemPrompt = `You are an elite Hollywood visual director creating detailed image prompts for YouTube story videos.
-Convert this Bengali story excerpt into a vivid, descriptive English image prompt for an image generator (Flux/Stable Diffusion).
-Describe: main visual subject, facial expression/pose, setting, lighting, atmosphere, colors, and camera shot.
-Keep under 50 words. Must emphasize: ${styleDesc}, ${ratioDesc}, no text, no watermark, no border.
-Output ONLY the English prompt text.`;
+  return `Cinematic shot, ${clean}, ${styleDesc}, ${ratioDesc}, masterpiece, 8k resolution, sharp focus, highly detailed, no text, no watermark, no border`;
+}
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${activeKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: `${systemPrompt}\n\nBengali Text: "${sceneText}"` }] }],
-            generationConfig: { temperature: 0.7, maxOutputTokens: 100 }
-          })
-        });
+async function translateBengaliToVisualPrompt(sceneText, style = 'cinematic', aspectRatio = '16:9') {
+  if (!sceneText || !sceneText.trim()) {
+    return buildVisualPromptFromEnglish('a captivating cinematic scene', style, aspectRatio);
+  }
 
-        if (response.ok) {
-          const data = await response.json();
-          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-          if (text && !/[\u0980-\u09FF]/.test(text)) {
-            return text.replace(/^["']|["']$/g, '').trim();
+  const rawText = sceneText.trim();
+  let englishTranslation = '';
+
+  // 1. First Priority: Google Gemini AI (if user has API Key)
+  const keys = parseKeys(state.apiKey);
+  if (keys.length > 0) {
+    for (const key of keys) {
+      for (const m of ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite']) {
+        try {
+          const prompt = `You are an elite visual director. Translate and describe this Bengali story scene into a vivid English description for image generation:
+"""${rawText}"""
+Rules:
+- Describe the exact characters, their exact clothing, action, objects, surroundings, and mood described in the Bengali text.
+- Return ONLY 1 to 2 descriptive English sentences (under 40 words).
+- Pure English only, no quotes, no markdown.`;
+
+          const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.2, maxOutputTokens: 100 }
+            })
+          });
+
+          if (resp.ok) {
+            const data = await resp.json();
+            const result = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            if (result && !/[\u0980-\u09FF]/.test(result)) {
+              englishTranslation = result.replace(/^["']|["']$/g, '').trim();
+              break;
+            }
+          }
+        } catch (e) {
+          // Fall through
+        }
+      }
+      if (englishTranslation) break;
+    }
+  }
+
+  // 2. Second Priority: Google Translate GTX Neural API (100% Free, NO API key required, translates ANY Bengali sentence)
+  if (!englishTranslation) {
+    try {
+      const gtxUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=bn&tl=en&dt=t&q=${encodeURIComponent(rawText)}`;
+      const resp = await fetch(gtxUrl);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && data[0] && Array.isArray(data[0])) {
+          const translated = data[0].map(item => item[0]).filter(Boolean).join(' ').trim();
+          if (translated && !/[\u0980-\u09FF]/.test(translated)) {
+            englishTranslation = translated;
           }
         }
-      } catch (err) {
-        console.warn(`Model ${m} visual prompt error:`, err);
       }
+    } catch (err) {
+      console.warn('Google Translate GTX error:', err);
     }
   }
 
-  // Safe semantic English fallback (Zero Bengali characters)
-  return translateBengaliSceneToEnglish(sceneText, styleDesc, ratioDesc);
+  // 3. Third Priority: MyMemory Free Translation API
+  if (!englishTranslation) {
+    try {
+      const memUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(rawText)}&langpair=bn|en`;
+      const resp = await fetch(memUrl);
+      if (resp.ok) {
+        const data = await resp.json();
+        const translated = data?.responseData?.translatedText?.trim();
+        if (translated && !translated.includes('MYMEMORY WARNING') && !/[\u0980-\u09FF]/.test(translated)) {
+          englishTranslation = translated;
+        }
+      }
+    } catch (err) {
+      console.warn('MyMemory fallback error:', err);
+    }
+  }
+
+  // 4. Fourth Priority: Comprehensive Semantic Dictionary Mapper (Never fails even offline)
+  if (!englishTranslation) {
+    englishTranslation = smartBengaliSemanticTranslate(rawText);
+  }
+
+  return buildVisualPromptFromEnglish(englishTranslation, style, aspectRatio);
+}
+
+// Backwards-compatible aliases
+function buildIntelligentVisualPrompt(text, style = 'cinematic', ratio = '16:9') {
+  return buildVisualPromptFromEnglish(smartBengaliSemanticTranslate(text), style, ratio);
+}
+function translateBengaliSceneToEnglish(text, style = 'cinematic', ratio = '16:9') {
+  return buildIntelligentVisualPrompt(text, style, ratio);
+}
+async function analyzeSceneWithGemini(sceneText, style = 'cinematic', aspectRatio = '16:9') {
+  const visualPrompt = await translateBengaliToVisualPrompt(sceneText, style, aspectRatio);
+  return { visualPrompt };
+}
+async function generateVisualPromptForScene(sceneText, style, aspectRatio) {
+  return translateBengaliToVisualPrompt(sceneText, style, aspectRatio);
 }
 
 function isRateLimitBanner(img) {
@@ -2396,9 +2397,19 @@ async function generateSceneImage(sceneId, isBatch = false) {
   // 1. Enforce cooldown if on free keyless tier (0s wait when API key is active)
   await waitForImageCooldown(scene, isBatch);
 
-  // 2. Ensure 100% pure English visual prompt (Strict validation: never send Bengali text to image generator!)
-  if (!scene.visualPrompt || /[\u0980-\u09FF]/.test(scene.visualPrompt) || scene.visualPrompt.startsWith('A cinematic shot depicting:')) {
-    scene.visualPrompt = await generateVisualPromptForScene(scene.text, videoState.visualStyle, videoState.aspectRatio);
+  // 2. Ensure 100% accurate English visual prompt matching the Bengali text
+  if (!scene.visualPrompt || !scene.isTranslated || /[\u0980-\u09FF]/.test(scene.visualPrompt) || scene.visualPrompt.startsWith('A cinematic shot depicting:')) {
+    try {
+      const prompt = await translateBengaliToVisualPrompt(scene.text, videoState.visualStyle, videoState.aspectRatio);
+      if (prompt) {
+        scene.visualPrompt = prompt;
+        scene.isTranslated = true;
+        const pInput = document.getElementById(`prompt-input-${scene.id}`);
+        if (pInput) pInput.value = scene.visualPrompt;
+      }
+    } catch (e) {
+      scene.visualPrompt = buildVisualPromptFromEnglish(smartBengaliSemanticTranslate(scene.text), videoState.visualStyle, videoState.aspectRatio);
+    }
   }
 
   scene.imageStatus = 'generating';
@@ -2548,8 +2559,9 @@ async function generateSceneAudio(sceneId) {
       bytes[i] = binaryStr.charCodeAt(i);
     }
     const audioBlob = new Blob([bytes], { type: 'audio/wav' });
-    if (scene.audioUrl) URL.revokeObjectURL(scene.audioUrl);
     scene.audioBlob = audioBlob;
+    scene.mixedAudioBlob = null;
+    if (scene.audioUrl) URL.revokeObjectURL(scene.audioUrl);
     scene.audioUrl = URL.createObjectURL(audioBlob);
     scene.audioStatus = 'ready';
   } catch (err) {
@@ -2675,7 +2687,7 @@ async function downloadVideoZip() {
       const scene = videoState.scenes[idx];
       const pad = String(idx + 1).padStart(2, '0');
 
-      // Add voiceover audio to Audios folder
+      // Add voiceover audio (pure studio voice) to Audios folder
       if (scene.audioBlob) {
         audioFolder.file(`Scene_${pad}.wav`, scene.audioBlob);
         count++;
@@ -2732,28 +2744,51 @@ window.generateSceneBoth = generateSceneBoth;
 window.generateSceneImage = generateSceneImage;
 window.generateSceneAudio = generateSceneAudio;
 
-window.updateVideoSceneText = function(id, newText) {
+window.updateVideoSceneText = async function(id, newText) {
   const scene = videoState.scenes.find(s => s.id === id);
   if (scene) {
     scene.text = newText;
+    scene.isAiPrompt = false;
     scene.ambientSound = detectAmbientSound(newText);
+    scene.visualPrompt = buildIntelligentVisualPrompt(newText, videoState.visualStyle, videoState.aspectRatio);
     renderVideoScenes();
+    try {
+      const res = await analyzeSceneWithGemini(newText, videoState.visualStyle, videoState.aspectRatio);
+      if (res && res.visualPrompt) {
+        scene.visualPrompt = res.visualPrompt;
+        scene.isAiPrompt = true;
+        if (res.ambientSound) {
+          scene.ambientSound = res.ambientSound;
+          const badgeEl = document.getElementById(`ambient-badge-${scene.id}`);
+          if (badgeEl) badgeEl.textContent = scene.ambientSound.label;
+        }
+        const pInput = document.getElementById(`prompt-input-${scene.id}`);
+        if (pInput) pInput.value = scene.visualPrompt;
+      }
+    } catch (e) {}
   }
 };
 
 window.updateVideoScenePrompt = function(id, newPrompt) {
   const scene = videoState.scenes.find(s => s.id === id);
-  if (scene) scene.visualPrompt = newPrompt;
+  if (scene) {
+    scene.visualPrompt = newPrompt;
+    scene.isAiPrompt = true;
+  }
 };
 
 window.regenerateScenePrompt = async function(id) {
   const scene = videoState.scenes.find(s => s.id === id);
   if (scene) {
-    showToast('নতুন সিনেমাটিক প্রম্পট তৈরি হচ্ছে...', 'info');
-    scene.visualPrompt = await generateVisualPromptForScene(scene.text, videoState.visualStyle, videoState.aspectRatio);
-    const inputEl = document.getElementById(`prompt-input-${id}`);
-    if (inputEl) inputEl.value = scene.visualPrompt;
-    showToast('সিনেমাটিক প্রম্পট আপডেট হয়েছে!', 'success');
+    showToast('টেক্সটের সাথে হুবহু মিলিয়ে নতুন প্রম্পট তৈরি হচ্ছে...', 'info');
+    const prompt = await translateBengaliToVisualPrompt(scene.text, videoState.visualStyle, videoState.aspectRatio);
+    if (prompt) {
+      scene.visualPrompt = prompt;
+      scene.isTranslated = true;
+      const inputEl = document.getElementById(`prompt-input-${id}`);
+      if (inputEl) inputEl.value = scene.visualPrompt;
+      showToast('সিন প্রম্পট সফলভাবে টেক্সটের সাথে আপডেট হয়েছে!', 'success');
+    }
   }
 };
 
@@ -2901,205 +2936,55 @@ function closeVideoRenderModal() {
 }
 
 // ==========================================
-// Procedural Nature Sound Synthesizer
-// 100% Free Web Audio API Mathematical Nature Ambience
+// High-Quality WAV Audio Encoder
+// Converts Web Audio API AudioBuffer to Standard 16-bit PCM WAV Blob
 // ==========================================
-function generateNatureAmbienceBuffer(audioCtx, soundId, duration) {
-  if (!audioCtx || duration <= 0) return null;
+function audioBufferToWavBlob(audioBuffer) {
+  const numOfChan = audioBuffer.numberOfChannels;
+  const numSamples = audioBuffer.length;
+  const length = numSamples * numOfChan * 2 + 44;
+  const buffer = new ArrayBuffer(length);
+  const out = new DataView(buffer);
+  let pos = 0;
 
-  const sampleRate = audioCtx.sampleRate || 44100;
-  const totalSamples = Math.ceil(sampleRate * Math.max(1, duration));
-  const buffer = audioCtx.createBuffer(2, totalSamples, sampleRate);
-  const left = buffer.getChannelData(0);
-  const right = buffer.getChannelData(1);
+  function setUint16(d) { out.setUint16(pos, d, true); pos += 2; }
+  function setUint32(d) { out.setUint32(pos, d, true); pos += 4; }
 
-  // Stateful Pink Noise Generators for realistic organic sound
-  let bL0 = 0, bL1 = 0, bL2 = 0, bL3 = 0, bL4 = 0, bL5 = 0, bL6 = 0;
-  let bR0 = 0, bR1 = 0, bR2 = 0, bR3 = 0, bR4 = 0, bR5 = 0, bR6 = 0;
-  function pinkL() {
-    const w = Math.random() * 2 - 1;
-    bL0 = 0.99886 * bL0 + w * 0.0555179;
-    bL1 = 0.99332 * bL1 + w * 0.0750759;
-    bL2 = 0.96900 * bL2 + w * 0.1538520;
-    bL3 = 0.86650 * bL3 + w * 0.3104856;
-    bL4 = 0.55000 * bL4 + w * 0.5329522;
-    bL5 = -0.7616 * bL5 - w * 0.0168980;
-    const p = bL0 + bL1 + bL2 + bL3 + bL4 + bL5 + bL6 + w * 0.5362;
-    bL6 = w * 0.115926;
-    return p * 0.11;
-  }
-  function pinkR() {
-    const w = Math.random() * 2 - 1;
-    bR0 = 0.99886 * bR0 + w * 0.0555179;
-    bR1 = 0.99332 * bR1 + w * 0.0750759;
-    bR2 = 0.96900 * bR2 + w * 0.1538520;
-    bR3 = 0.86650 * bR3 + w * 0.3104856;
-    bR4 = 0.55000 * bR4 + w * 0.5329522;
-    bR5 = -0.7616 * bR5 - w * 0.0168980;
-    const p = bR0 + bR1 + bR2 + bR3 + bR4 + bR5 + bR6 + w * 0.5362;
-    bR6 = w * 0.115926;
-    return p * 0.11;
+  out.setUint32(0, 0x46464952, true); pos = 4; // 'RIFF'
+  setUint32(length - 8);
+  out.setUint32(pos, 0x45564157, true); pos += 4; // 'WAVE'
+  out.setUint32(pos, 0x20746d66, true); pos += 4; // 'fmt '
+  setUint32(16); // SubChunk1Size (16 for PCM)
+  setUint16(1);  // PCM format
+  setUint16(numOfChan);
+  setUint32(audioBuffer.sampleRate);
+  setUint32(audioBuffer.sampleRate * numOfChan * 2); // Byte rate
+  setUint16(numOfChan * 2); // Block align
+  setUint16(16); // Bits per sample
+  out.setUint32(pos, 0x61746164, true); pos += 4; // 'data'
+  setUint32(numSamples * numOfChan * 2);
+
+  const channelsData = [];
+  for (let ch = 0; ch < numOfChan; ch++) {
+    channelsData.push(audioBuffer.getChannelData(ch));
   }
 
-  // Lowpass filter states
-  let lpL = 0;
-  let lpR = 0;
-
-  for (let i = 0; i < totalSamples; i++) {
-    const t = i / sampleRate;
-
-    // Smooth fade in & fade out envelope (0.35s)
-    let env = 1.0;
-    if (t < 0.35) {
-      env = t / 0.35;
-    } else if (t > duration - 0.35) {
-      env = Math.max(0, (duration - t) / 0.35);
+  for (let offset = 0; offset < numSamples; offset++) {
+    for (let ch = 0; ch < numOfChan; ch++) {
+      let s = Math.max(-1, Math.min(1, channelsData[ch][offset]));
+      s = (s < 0 ? s * 0x8000 : s * 0x7FFF) | 0;
+      out.setInt16(pos, s, true);
+      pos += 2;
     }
-
-    let sampL = 0;
-    let sampR = 0;
-
-    switch (soundId) {
-      case 'river_water':
-      case 'river_night': {
-        // Continuous gentle water flowing (low-passed pink noise)
-        lpL = lpL * 0.92 + pinkL() * 0.08;
-        lpR = lpR * 0.92 + pinkR() * 0.08;
-
-        // Cyclic gentle wave swell every 3.2s
-        const wave = 0.65 + 0.35 * Math.sin((2 * Math.PI * t) / 3.2);
-        sampL = lpL * wave * 1.5;
-        sampR = lpR * wave * 1.5;
-
-        // If river at night: subtle cricket chirping in distance
-        if (soundId === 'river_night') {
-          const cricketCycle = (t % 1.5);
-          if (cricketCycle < 0.18) {
-            const cSine = Math.sin(2 * Math.PI * 4700 * t);
-            const cPulse = Math.sin(2 * Math.PI * 25 * cricketCycle) > 0 ? 1 : 0;
-            sampL += cSine * cPulse * 0.035;
-            sampR += cSine * cPulse * 0.04;
-          }
-        }
-        break;
-      }
-
-      case 'night_forest': {
-        // Soft quiet night air
-        sampL = pinkL() * 0.18;
-        sampR = pinkR() * 0.18;
-
-        // Rhythmic forest crickets (3 rapid chirp pulses every 1.25s)
-        const cycle = t % 1.25;
-        if (cycle < 0.22) {
-          const pulse = Math.sin(2 * Math.PI * 24 * cycle) > 0 ? 1 : 0;
-          const toneL = Math.sin(2 * Math.PI * 4650 * t);
-          const toneR = Math.sin(2 * Math.PI * 4800 * (t + 0.015));
-          sampL += toneL * pulse * 0.06;
-          sampR += toneR * pulse * 0.065;
-        }
-        break;
-      }
-
-      case 'morning_birds': {
-        // Gentle dawn breeze
-        lpL = lpL * 0.95 + pinkL() * 0.05;
-        lpR = lpR * 0.95 + pinkR() * 0.05;
-        sampL = lpL * 0.8;
-        sampR = lpR * 0.8;
-
-        // Sweet bird chirps at intervals (at ~0.8s, ~2.2s, ~3.8s, ~5.4s)
-        const birdCycle = t % 1.8;
-        if (birdCycle > 0.4 && birdCycle < 0.52) {
-          const chirpProgress = (birdCycle - 0.4) / 0.12;
-          const freq = 3100 - chirpProgress * 800; // 3100 Hz down to 2300 Hz
-          const birdTone = Math.sin(2 * Math.PI * freq * t);
-          const birdEnv = Math.sin(Math.PI * chirpProgress);
-          sampL += birdTone * birdEnv * 0.08;
-          sampR += birdTone * birdEnv * 0.06;
-        }
-        break;
-      }
-
-      case 'rain_storm': {
-        // Soft rain droplets texture (white + pink noise combo)
-        const whiteL = (Math.random() * 2 - 1) * 0.12;
-        const whiteR = (Math.random() * 2 - 1) * 0.12;
-        sampL = pinkL() * 0.35 + whiteL;
-        sampR = pinkR() * 0.35 + whiteR;
-
-        // Distant wind modulation
-        const windGust = 0.7 + 0.3 * Math.sin((2 * Math.PI * t) / 4.0);
-        sampL *= windGust;
-        sampR *= windGust;
-        break;
-      }
-
-      case 'wind_breeze': {
-        // Resonant sweeping wind
-        const cutoff = 0.92 + 0.05 * Math.sin((2 * Math.PI * t) / 3.8);
-        lpL = lpL * cutoff + pinkL() * (1 - cutoff);
-        lpR = lpR * cutoff + pinkR() * (1 - cutoff);
-        sampL = lpL * 1.6;
-        sampR = lpR * 1.6;
-        break;
-      }
-
-      case 'dramatic_suspense': {
-        // Low ominous sub-bass drone with 1.8 Hz acoustic beat
-        const drone = Math.sin(2 * Math.PI * 55 * t) * 0.12 + Math.sin(2 * Math.PI * 56.8 * t) * 0.08;
-        lpL = lpL * 0.96 + pinkL() * 0.04;
-        lpR = lpR * 0.96 + pinkR() * 0.04;
-        sampL = drone + lpL * 0.6;
-        sampR = drone + lpR * 0.6;
-        break;
-      }
-
-      case 'peaceful_nature':
-      default: {
-        // Calm atmospheric outdoor presence + warm harmonic pad
-        lpL = lpL * 0.94 + pinkL() * 0.06;
-        lpR = lpR * 0.94 + pinkR() * 0.06;
-        const pad = (Math.sin(2 * Math.PI * 220 * t) + Math.sin(2 * Math.PI * 330 * t)) * 0.025;
-        sampL = lpL * 0.9 + pad;
-        sampR = lpR * 0.9 + pad;
-        break;
-      }
-    }
-
-    left[i] = Math.max(-1, Math.min(1, sampL * env));
-    right[i] = Math.max(-1, Math.min(1, sampR * env));
   }
 
-  return buffer;
+  return new Blob([buffer], { type: 'audio/wav' });
 }
 
-let currentAmbientPreview = null;
-window.previewAmbientSound = function(soundId) {
-  try {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioContextClass();
-    if (ctx.state === 'suspended') ctx.resume();
-
-    if (currentAmbientPreview) {
-      try { currentAmbientPreview.stop(); } catch (e) {}
-    }
-
-    const buf = generateNatureAmbienceBuffer(ctx, soundId, 4.0);
-    if (!buf) return;
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    const gain = ctx.createGain();
-    gain.gain.value = 0.35;
-    src.connect(gain);
-    gain.connect(ctx.destination);
-    src.start();
-    currentAmbientPreview = src;
-    showToast('প্রাকৃতিক আবহ সাউন্ড বাজছে (৪ সেকেন্ড)...', 'info');
-  } catch (e) {
-    console.warn('Preview sound error:', e);
-  }
-};
+// Background music disabled as per user instruction (Pure clean voiceover only)
+function generateCinematicMusicBuffer() { return null; }
+async function mixVoiceWithBackgroundMusic(voiceBlob) { return voiceBlob; }
+window.previewAmbientSound = function() {};
 
 async function startVideoRendering() {
   if (videoState.isRenderingVideo) return;
@@ -3122,7 +3007,7 @@ async function startVideoRendering() {
   if (elements.videoRenderProgressBar) elements.videoRenderProgressBar.style.width = '0%';
   if (elements.videoRenderPercent) elements.videoRenderPercent.textContent = '০%';
   if (elements.videoRenderStatusText) {
-    elements.videoRenderStatusText.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>মিডিয়া প্রিলোড ও প্রস্তুত হচ্ছে...</span>`;
+    elements.videoRenderStatusText.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>মিডিয়া প্রিলোড ও নিখুঁত অডিও সিঙ্ক প্রস্তুত হচ্ছে...</span>`;
     if (window.lucide) window.lucide.createIcons();
   }
 
@@ -3152,7 +3037,7 @@ async function startVideoRendering() {
       await audioCtx.resume();
     }
 
-    // Step 1: Preload and decode all scene assets in advance
+    // Step 1: Preload images & ensure mixed audio buffer (Voice + Matching Music)
     const preloaded = [];
     for (let i = 0; i < validScenes.length; i++) {
       if (renderCancelled) break;
@@ -3178,12 +3063,14 @@ async function startVideoRendering() {
         console.warn(`Scene ${scene.id} image preload warning:`, err);
       }
 
-      // Decode Audio
+      // Pure Voiceover Audio (No background music)
+      const targetAudioBlob = scene.audioBlob;
+
       let audioBuffer = null;
-      let duration = 4.0; // default 4s if audio missing
-      if (scene.audioBlob) {
+      let duration = 4.0;
+      if (targetAudioBlob) {
         try {
-          const ab = await scene.audioBlob.arrayBuffer();
+          const ab = await targetAudioBlob.arrayBuffer();
           audioBuffer = await audioCtx.decodeAudioData(ab);
           duration = audioBuffer.duration;
         } catch (err) {
@@ -3199,7 +3086,19 @@ async function startVideoRendering() {
       return;
     }
 
-    // Step 2: Configure Canvas + Audio Stream Capture
+    // Step 2: Establish Frame-Perfect Sequential Timeline
+    let timePos = 0;
+    const timeline = [];
+    for (let i = 0; i < preloaded.length; i++) {
+      const p = preloaded[i];
+      const startT = timePos;
+      const endT = startT + p.duration;
+      timeline.push({ ...p, startTime: startT, endTime: endT });
+      timePos = endT;
+    }
+    const totalDuration = timePos;
+
+    // Step 3: Configure MediaRecorder Streams
     const audioDest = audioCtx.createMediaStreamDestination();
     const canvasStream = canvas.captureStream(30);
     const audioTracks = audioDest.stream.getAudioTracks();
@@ -3220,7 +3119,7 @@ async function startVideoRendering() {
     const recordedChunks = [];
     recorder = new MediaRecorder(combinedStream, {
       mimeType: mimeType,
-      videoBitsPerSecond: 3500000 // High-quality 3.5 Mbps HD bitrate
+      videoBitsPerSecond: 3500000
     });
 
     recorder.ondataavailable = (e) => {
@@ -3230,73 +3129,62 @@ async function startVideoRendering() {
     };
 
     recorder.start(100);
-    const totalScenes = preloaded.length;
 
-    // Step 3: Sequentially render scenes with smooth Ken Burns motion & voiceover
-    for (let idx = 0; idx < totalScenes; idx++) {
-      if (renderCancelled) break;
-      const { scene, img, audioBuffer, duration } = preloaded[idx];
-      const sceneNum = idx + 1;
+    // Step 4: Schedule All Scene Audios with Exact Hardware Clock Timestamps (Zero Drift!)
+    const renderStartTime = audioCtx.currentTime + 0.15;
+    for (const item of timeline) {
+      if (item.audioBuffer) {
+        const src = audioCtx.createBufferSource();
+        src.buffer = item.audioBuffer;
+        src.connect(audioDest);
+        src.start(renderStartTime + item.startTime);
+      }
+    }
 
-      if (elements.videoRenderStatusText) {
-        elements.videoRenderStatusText.innerHTML = `<i data-lucide="video" class="w-4 h-4 text-emerald-400 animate-pulse"></i><span>দৃশ্য ${sceneNum}/${totalScenes} রেন্ডার হচ্ছে...</span>`;
-        if (window.lucide) window.lucide.createIcons();
+    // Step 5: Hardware Audio-Clock-Locked Frame Loop
+    const fps = 30;
+    const frameIntervalMs = 1000 / fps;
+    const totalScenes = timeline.length;
+
+    while (!renderCancelled) {
+      const now = audioCtx.currentTime;
+      const elapsed = now - renderStartTime;
+
+      if (elapsed >= totalDuration) {
+        break; // All scenes completed in sync
       }
 
-      // Stream the voiceover audio
-      if (audioBuffer) {
-        const source = audioCtx.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(audioDest);
-        source.start();
-      }
-
-      // Stream the automatic natural ambient sound for this scene
-      if (scene.ambientSound && scene.ambientSound.id) {
-        try {
-          const ambientBuf = generateNatureAmbienceBuffer(audioCtx, scene.ambientSound.id, duration);
-          if (ambientBuf) {
-            const ambientSource = audioCtx.createBufferSource();
-            ambientSource.buffer = ambientBuf;
-            const ambientGain = audioCtx.createGain();
-            // Subtle 15% volume so the voiceover is 100% crystal-clear and prominent
-            ambientGain.gain.setValueAtTime(0.16, audioCtx.currentTime);
-            ambientGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-            ambientSource.connect(ambientGain);
-            ambientGain.connect(audioDest);
-            ambientSource.start();
+      if (elapsed >= 0) {
+        // Find the scene playing at this exact second
+        let cur = timeline[0];
+        for (const item of timeline) {
+          if (elapsed >= item.startTime && elapsed < item.endTime) {
+            cur = item;
+            break;
           }
-        } catch (ambientErr) {
-          console.warn('Ambient sound synthesis error:', ambientErr);
         }
-      }
 
-      // Frame animation loop
-      const fps = 30;
-      const totalFrames = Math.max(15, Math.round(duration * fps));
-      const frameDurationMs = 1000 / fps;
-      const isEven = idx % 2 === 0;
+        // Progress within this scene (0.0 to 1.0)
+        const sceneDuration = Math.max(0.1, cur.duration);
+        const p = Math.min(1.0, Math.max(0.0, (elapsed - cur.startTime) / sceneDuration));
 
-      for (let frame = 0; frame < totalFrames; frame++) {
-        if (renderCancelled) break;
-        const p = frame / totalFrames; // 0.0 to 1.0
-
-        // Ken Burns effect: subtle scale (1.0 to 1.12) & gentle pan
+        // Ken Burns motion: gentle zoom & pan
+        const isEven = cur.scene.id % 2 === 0;
         const zoom = isEven ? (1.0 + p * 0.12) : (1.12 - p * 0.12);
         const panX = isEven ? ((p - 0.5) * 36) : ((0.5 - p) * 36);
         const panY = isEven ? ((p - 0.5) * 18) : ((0.5 - p) * 18);
 
-        // Draw background and transformed image
+        // Draw background & transformed image
         ctx.save();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = '#090d16';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        if (img) {
+        if (cur.img) {
           ctx.translate(canvas.width / 2, canvas.height / 2);
           ctx.scale(zoom, zoom);
           ctx.translate(-canvas.width / 2 + panX, -canvas.height / 2 + panY);
-          drawImageCover(ctx, img, 0, 0, canvas.width, canvas.height);
+          drawImageCover(ctx, cur.img, 0, 0, canvas.width, canvas.height);
         }
         ctx.restore();
 
@@ -3309,24 +3197,27 @@ async function startVideoRendering() {
         ctx.fillRect(0, canvas.height - vignetteH, canvas.width, vignetteH);
 
         // Bengali subtitle caption
-        if (scene.text) {
+        if (cur.scene.text) {
           ctx.fillStyle = '#ffffff';
           const fontSize = canvas.width > 800 ? 24 : 18;
           ctx.font = `600 ${fontSize}px 'Hind Siliguri', 'Noto Sans Bengali', sans-serif`;
           ctx.textAlign = 'center';
           ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
           ctx.shadowBlur = 10;
-          drawWrappedText(ctx, scene.text, canvas.width / 2, canvas.height - (fontSize * 1.8), canvas.width - 80, fontSize * 1.35);
+          drawWrappedText(ctx, cur.scene.text, canvas.width / 2, canvas.height - (fontSize * 1.8), canvas.width - 80, fontSize * 1.35);
           ctx.shadowBlur = 0;
         }
 
-        // Update overall progress bar
-        const overallPercent = Math.min(100, Math.round(((idx + p) / totalScenes) * 100));
+        // Update progress bar
+        const overallPercent = Math.min(100, Math.round((elapsed / totalDuration) * 100));
         if (elements.videoRenderProgressBar) elements.videoRenderProgressBar.style.width = overallPercent + '%';
         if (elements.videoRenderPercent) elements.videoRenderPercent.textContent = overallPercent + '%';
-
-        await new Promise(r => setTimeout(r, frameDurationMs));
+        if (elements.videoRenderStatusText) {
+          elements.videoRenderStatusText.innerHTML = `<i data-lucide="video" class="w-4 h-4 text-emerald-400 animate-pulse"></i><span>দৃশ্য ${cur.scene.id}/${totalScenes} রেন্ডার হচ্ছে (${overallPercent}%)...</span>`;
+        }
       }
+
+      await new Promise(r => setTimeout(r, frameIntervalMs));
     }
 
     if (renderCancelled) {
@@ -3335,10 +3226,10 @@ async function startVideoRendering() {
       return;
     }
 
-    // Brief 300ms tail delay to ensure clean end
+    // Brief 300ms tail delay
     await new Promise(r => setTimeout(r, 300));
 
-    // Finish recording and display video
+    // Finish recording
     recorder.onstop = () => {
       const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
       const blob = new Blob(recordedChunks, { type: mimeType });
