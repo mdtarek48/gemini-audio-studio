@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="bn" class="dark">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -30,31 +31,39 @@
   </script>
   <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-teal-500 selection:text-white">
+
+<body
+  class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-teal-500 selection:text-white">
 
   <!-- Header -->
   <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
+        <div
+          class="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
           <i data-lucide="sparkles" class="w-5 h-5 text-white"></i>
         </div>
         <div>
           <h1 class="text-lg font-bold text-white flex items-center gap-2">
             Gemini AI Studio
-            <span class="text-xs bg-teal-500/20 text-teal-400 border border-teal-500/30 px-2 py-0.5 rounded-full font-medium">Free API</span>
+            <span
+              class="text-xs bg-teal-500/20 text-teal-400 border border-teal-500/30 px-2 py-0.5 rounded-full font-medium">Free
+              API</span>
           </h1>
           <p class="text-xs text-slate-400">প্রতি ১০ লাইনে অটো-স্প্লিট এবং অডিও জেনারেশন</p>
         </div>
       </div>
 
       <!-- Navigation Tabs: Text to Audio & Text to Video -->
-      <nav class="flex items-center bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 shadow-inner" aria-label="Tabs">
-        <button id="tabBtnAudio" type="button" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 bg-teal-600 text-white shadow-md shadow-teal-600/25">
+      <nav class="flex items-center bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 shadow-inner"
+        aria-label="Tabs">
+        <button id="tabBtnAudio" type="button"
+          class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 bg-teal-600 text-white shadow-md shadow-teal-600/25">
           <i data-lucide="volume-2" class="w-4 h-4"></i>
           <span>Text to Audio</span>
         </button>
-        <button id="tabBtnVideo" type="button" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
+        <button id="tabBtnVideo" type="button"
+          class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
           <i data-lucide="video" class="w-4 h-4"></i>
           <span>Text to Video</span>
         </button>
@@ -62,7 +71,8 @@
 
       <!-- Quick Settings / API Key status -->
       <div class="flex items-center gap-3">
-        <button id="toggleSettingsBtn" class="flex items-center gap-2 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-lg transition shadow-sm">
+        <button id="toggleSettingsBtn"
+          class="flex items-center gap-2 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-lg transition shadow-sm">
           <i data-lucide="key" class="w-4 h-4 text-teal-400"></i>
           <span id="apiKeyBtnText">API Key সেট করুন</span>
           <span id="apiKeyIndicator" class="w-2 h-2 rounded-full bg-red-400"></span>
@@ -74,396 +84,466 @@
   <!-- Tab 1: Text to Audio Content (Everything preserved exactly as is) -->
   <div id="tabContentAudio" class="flex-1 flex flex-col w-full">
 
-  <!-- Settings Panel (Collapsible) -->
-  <section id="settingsPanel" class="bg-slate-900 border-b border-slate-800 transition-all duration-300">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <!-- API Key Input (Supports Multiple Accounts) -->
-        <div class="space-y-1.5 sm:col-span-2 lg:col-span-1">
-          <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
-            <span class="flex items-center gap-1.5">
-              <span>Google AI Studio API Keys</span>
-              <span class="text-[10px] bg-teal-500/20 text-teal-400 px-1.5 py-0.5 rounded font-medium">অটো-সুইচ</span>
-            </span>
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-teal-400 hover:text-teal-300 text-[11px] underline flex items-center gap-1">
-              ফ্রি কী নিন <i data-lucide="external-link" class="w-3 h-3"></i>
-            </a>
-          </label>
-          <div class="space-y-1.5">
-            <textarea id="apiKeyInput" rows="2" placeholder="প্রতি লাইনে আলাদা একাউন্টের API Key দিন...
+    <!-- Settings Panel (Collapsible) -->
+    <section id="settingsPanel" class="bg-slate-900 border-b border-slate-800 transition-all duration-300">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- API Key Input (Supports Multiple Accounts) -->
+          <div class="space-y-1.5 sm:col-span-2 lg:col-span-1">
+            <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+              <span class="flex items-center gap-1.5">
+                <span>Google AI Studio API Keys</span>
+                <span class="text-[10px] bg-teal-500/20 text-teal-400 px-1.5 py-0.5 rounded font-medium">অটো-সুইচ</span>
+              </span>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank"
+                class="text-teal-400 hover:text-teal-300 text-[11px] underline flex items-center gap-1">
+                ফ্রি কী নিন <i data-lucide="external-link" class="w-3 h-3"></i>
+              </a>
+            </label>
+            <div class="space-y-1.5">
+              <textarea id="apiKeyInput" rows="2" placeholder="প্রতি লাইনে আলাদা একাউন্টের API Key দিন...
 AQ.Ab8RN6Lm... (১ম একাউন্ট)
-AIzaSy... (২য় একাউন্ট)" 
-              class="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-xs text-slate-100 rounded-lg p-2 outline-none transition font-mono resize-y leading-relaxed"></textarea>
-            <div class="flex items-center justify-between">
-              <span id="keysCountBadge" class="text-[11px] text-teal-400 font-medium">১টি Key সক্রিয়</span>
-              <button id="saveKeyBtn" type="button" class="text-[11px] bg-teal-600 hover:bg-teal-500 text-white px-3 py-1 rounded transition font-medium flex items-center gap-1 shadow-sm">
-                <i data-lucide="save" class="w-3 h-3"></i> Save Keys
+AIzaSy... (২য় একাউন্ট)"
+                class="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-xs text-slate-100 rounded-lg p-2 outline-none transition font-mono resize-y leading-relaxed"></textarea>
+              <div class="flex items-center justify-between">
+                <span id="keysCountBadge" class="text-[11px] text-teal-400 font-medium">১টি Key সক্রিয়</span>
+                <button id="saveKeyBtn" type="button"
+                  class="text-[11px] bg-teal-600 hover:bg-teal-500 text-white px-3 py-1 rounded transition font-medium flex items-center gap-1 shadow-sm">
+                  <i data-lucide="save" class="w-3 h-3"></i> Save Keys
+                </button>
+              </div>
+            </div>
+            <p class="text-[10px] text-slate-400 leading-normal">💡 ১ম একাউন্টের লিমিট শেষ হলে ২য় একাউন্ট থেকে অটোমেটিক
+              চলবে।</p>
+          </div>
+
+          <!-- Voice Selector -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-slate-300">Gemini ভয়েস সিলেক্ট করুন</label>
+            <select id="voiceSelect"
+              class="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
+              <option value="Kore" selected>Kore (শান্ত ও মিষ্টি নারী কণ্ঠ)</option>
+              <option value="Puck">Puck (স্পষ্ট ও প্রাণবন্ত পুরুষ কণ্ঠ)</option>
+              <option value="Aoede">Aoede (উষ্ণ ও স্পষ্ট নারী কণ্ঠ)</option>
+              <option value="Charon">Charon (গম্ভীর ও প্রামাণ্য পুরুষ কণ্ঠ)</option>
+              <option value="Fenrir">Fenrir (শক্তিশালী পুরুষ কণ্ঠ)</option>
+              <option value="Bodi">Bodi (Quiet and intimate · Low pitch)</option>
+              <option value="Mako">Mako (Energetic and colorful · Low pitch)</option>
+              <option value="Algenib">Algenib (Gravelly · Lower pitch)</option>
+            </select>
+            <p class="text-[10px] text-slate-400">পছন্দমতো যেকোনো কণ্ঠ নির্বাচন করুন।</p>
+          </div>
+
+          <!-- Voice Tone Selector (Human Persona / AI Studio Style) -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+              <span class="flex items-center gap-1">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
+                <span>ভয়েস টোন ও বাচনভঙ্গি (Persona)</span>
+              </span>
+              <span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-medium">AI
+                Studio</span>
+            </label>
+            <select id="toneSelect"
+              class="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
+              <option value="Bright, sunny, welcoming morning greeting with a subtle vocal smile and crisp pacing"
+                selected>
+                Bright, sunny, welcoming (হাসিমুখ ও প্রাণবন্ত সুর - ডিফল্ট)
+              </option>
+              <option value="Warm, natural, conversational storytelling with relaxed pacing and authentic emotion">
+                Conversational Storytelling (স্বাভাবিক মানুষের মত গল্প বলা)
+              </option>
+              <option
+                value="Expressive, human-like narration with natural pauses, emotional depth, and clear articulation">
+                Expressive Narration (গভীর অনুভূতি ও স্পষ্ট উচ্চারণ)
+              </option>
+              <option value="Deep, serious, authoritative documentary narration with steady pacing and grave weight">
+                Authoritative Documentary (গুরুগম্ভীর তথ্যচিত্র ও ঐতিহাসিক)
+              </option>
+              <option value="Energetic, confident, engaging presentation with sharp delivery and positive enthusiasm">
+                Energetic Presentation (উদ্যমী উপস্থাপনা ও পডকাস্ট)
+              </option>
+              <option value="Calm, soothing, intimate late-night whisper with gentle pauses and warm resonance">
+                Calm & Soothing (শান্ত ও মিষ্টি ফিসফিস কণ্ঠ)
+              </option>
+              <option value="custom">কাস্টম টোন প্রম্পট (নিজের মতো লিখুন)...</option>
+            </select>
+            <input type="text" id="customToneInput" placeholder="টোন প্রম্পট লিখুন (যেমন: Bright, sunny...)"
+              value="Bright, sunny, welcoming morning greeting with a subtle vocal smile and crisp pacing"
+              class="w-full bg-slate-950/90 border border-slate-700 focus:border-amber-500 text-[11px] text-amber-200 rounded-lg p-2 outline-none transition font-mono truncate"
+              title="সক্রিয় ভয়েস টোন প্রম্পট">
+            <p class="text-[10px] text-slate-400">💡 মানুষের মত হাসিমুখ, সঠিক আবেগ ও স্বরের ওঠানামা বজায় রাখবে।</p>
+          </div>
+
+          <!-- Model Selector -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-slate-300">Gemini মডেল</label>
+            <div class="flex gap-2">
+              <input type="text" id="modelInput" value="gemini-3.8-flash-tts"
+                class="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition font-mono">
+              <button id="resetModelBtn" title="Reset to default"
+                class="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg text-xs">
+                Reset
               </button>
             </div>
+            <p class="text-[10px] text-slate-400">ডিফল্ট: <code
+                class="text-teal-400 font-mono">gemini-3.8-flash-tts</code> (অফিসিয়াল স্পিচ মডেল)।</p>
           </div>
-          <p class="text-[10px] text-slate-400 leading-normal">💡 ১ম একাউন্টের লিমিট শেষ হলে ২য় একাউন্ট থেকে অটোমেটিক চলবে।</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
+
+      <!-- YouTube Policy Scanner Section -->
+      <div id="youtubePolicySection"
+        class="bg-gradient-to-b from-slate-900 via-slate-900 to-slate-900/95 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5">
+        <!-- Section Header -->
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+          <div class="flex items-center gap-3">
+            <div
+              class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 via-amber-500 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/20">
+              <i data-lucide="shield-check" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-base font-bold text-white">ইউটিউব পলিসি ও মনিটাইজেশন স্ক্যানার</h2>
+                <span
+                  class="text-[11px] bg-rose-500/10 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-full font-medium">YouTube
+                  Safe AI</span>
+              </div>
+              <p class="text-xs text-slate-400">স্ক্রিপ্ট বা টেক্সট দিন ➜ ইউটিউব কমিউনিটি ও মনিটাইজেশন পলিসি চেক করুন ➜
+                ঝুঁকিপূর্ণ শব্দ সংশোধন করুন</p>
+            </div>
+          </div>
+
+          <button id="toggleAudioScannerBtn"
+            class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+            <span id="toggleScannerText">প্যানেলটি লুকান</span>
+            <i data-lucide="chevron-up" id="scannerChevronIcon" class="w-4 h-4 transition-transform duration-300"></i>
+          </button>
         </div>
 
-        <!-- Voice Selector -->
-        <div class="space-y-1.5">
-          <label class="text-xs font-semibold text-slate-300">Gemini ভয়েস সিলেক্ট করুন</label>
-          <select id="voiceSelect" class="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
-            <option value="Kore" selected>Kore (শান্ত ও মিষ্টি নারী কণ্ঠ)</option>
-            <option value="Puck">Puck (স্পষ্ট ও প্রাণবন্ত পুরুষ কণ্ঠ)</option>
-            <option value="Aoede">Aoede (উষ্ণ ও স্পষ্ট নারী কণ্ঠ)</option>
-            <option value="Charon">Charon (গম্ভীর ও প্রামাণ্য পুরুষ কণ্ঠ)</option>
-            <option value="Fenrir">Fenrir (শক্তিশালী পুরুষ কণ্ঠ)</option>
-            <option value="Bodi">Bodi (Quiet and intimate · Low pitch)</option>
-            <option value="Mako">Mako (Energetic and colorful · Low pitch)</option>
-            <option value="Algenib">Algenib (Gravelly · Lower pitch)</option>
-          </select>
-          <p class="text-[10px] text-slate-400">পছন্দমতো যেকোনো কণ্ঠ নির্বাচন করুন।</p>
-        </div>
+        <!-- Scanner Body -->
+        <div id="audioScannerContent" class="space-y-4">
 
-        <!-- Voice Tone Selector (Human Persona / AI Studio Style) -->
-        <div class="space-y-1.5">
-          <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
-            <span class="flex items-center gap-1">
-              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
-              <span>ভয়েস টোন ও বাচনভঙ্গি (Persona)</span>
-            </span>
-            <span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-medium">AI Studio</span>
-          </label>
-          <select id="toneSelect" class="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
-            <option value="Bright, sunny, welcoming morning greeting with a subtle vocal smile and crisp pacing" selected>
-              Bright, sunny, welcoming (হাসিমুখ ও প্রাণবন্ত সুর - ডিফল্ট)
-            </option>
-            <option value="Warm, natural, conversational storytelling with relaxed pacing and authentic emotion">
-              Conversational Storytelling (স্বাভাবিক মানুষের মত গল্প বলা)
-            </option>
-            <option value="Expressive, human-like narration with natural pauses, emotional depth, and clear articulation">
-              Expressive Narration (গভীর অনুভূতি ও স্পষ্ট উচ্চারণ)
-            </option>
-            <option value="Deep, serious, authoritative documentary narration with steady pacing and grave weight">
-              Authoritative Documentary (গুরুগম্ভীর তথ্যচিত্র ও ঐতিহাসিক)
-            </option>
-            <option value="Energetic, confident, engaging presentation with sharp delivery and positive enthusiasm">
-              Energetic Presentation (উদ্যমী উপস্থাপনা ও পডকাস্ট)
-            </option>
-            <option value="Calm, soothing, intimate late-night whisper with gentle pauses and warm resonance">
-              Calm & Soothing (শান্ত ও মিষ্টি ফিসফিস কণ্ঠ)
-            </option>
-            <option value="custom">কাস্টম টোন প্রম্পট (নিজের মতো লিখুন)...</option>
-          </select>
-          <input type="text" id="customToneInput" placeholder="টোন প্রম্পট লিখুন (যেমন: Bright, sunny...)"
-            value="Bright, sunny, welcoming morning greeting with a subtle vocal smile and crisp pacing"
-            class="w-full bg-slate-950/90 border border-slate-700 focus:border-amber-500 text-[11px] text-amber-200 rounded-lg p-2 outline-none transition font-mono truncate" title="সক্রিয় ভয়েস টোন প্রম্পট">
-          <p class="text-[10px] text-slate-400">💡 মানুষের মত হাসিমুখ, সঠিক আবেগ ও স্বরের ওঠানামা বজায় রাখবে।</p>
-        </div>
+          <!-- Text Input for Policy Check -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label for="policyTextInput" class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="file-search" class="w-4 h-4 text-rose-400"></i>
+                <span>যে লেখাটি পলিসি চেক করতে চান:</span>
+              </label>
+              <div class="flex items-center gap-2">
+                <button id="pullFromMainBtn" type="button"
+                  class="text-[11px] bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-teal-200 border border-slate-700 px-2.5 py-1 rounded-md transition flex items-center gap-1">
+                  <i data-lucide="arrow-down-left" class="w-3 h-3 text-teal-400"></i>
+                  <span>মূল বক্স থেকে লেখা আনুন</span>
+                </button>
+                <button id="clearPolicyTextBtn" type="button"
+                  class="text-[11px] text-slate-400 hover:text-rose-400 transition">
+                  ক্লিয়ার
+                </button>
+              </div>
+            </div>
 
-        <!-- Model Selector -->
-        <div class="space-y-1.5">
-          <label class="text-xs font-semibold text-slate-300">Gemini মডেল</label>
-          <div class="flex gap-2">
-            <input type="text" id="modelInput" value="gemini-3.8-flash-tts" 
-              class="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition font-mono">
-            <button id="resetModelBtn" title="Reset to default" class="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg text-xs">
-              Reset
+            <textarea id="policyTextInput" rows="4"
+              placeholder="আপনার ভিডিওর স্ক্রিপ্ট বা যেকোনো টেক্সট এখানে পেস্ট বা টাইপ করুন... এরপর নিচের বাটনে ক্লিক করে ইউটিউবের পলিসির সাথে যাচাই করুন।"
+              class="w-full bg-slate-950/70 border border-slate-800 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 rounded-xl p-3.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition resize-y leading-relaxed"></textarea>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex flex-wrap items-center gap-3">
+            <button id="startPolicyCheckBtn"
+              class="bg-gradient-to-r from-rose-600 via-amber-600 to-teal-600 hover:from-rose-500 hover:to-teal-500 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-rose-600/20">
+              <i data-lucide="shield-alert" class="w-4 h-4"></i>
+              <span>ইউটিউব পলিসি স্ক্যান করুন</span>
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">ডিফল্ট: <code class="text-teal-400 font-mono">gemini-3.8-flash-tts</code> (অফিসিয়াল স্পিচ মডেল)।</p>
-        </div>
-      </div>
-    </div>
-  </section>
 
-  <!-- Main Container -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
-    
-    <!-- YouTube Policy Scanner Section -->
-    <div id="youtubePolicySection" class="bg-gradient-to-b from-slate-900 via-slate-900 to-slate-900/95 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5">
-      <!-- Section Header -->
-      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 via-amber-500 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/20">
-            <i data-lucide="shield-check" class="w-5 h-5"></i>
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h2 class="text-base font-bold text-white">ইউটিউব পলিসি ও মনিটাইজেশন স্ক্যানার</h2>
-              <span class="text-[11px] bg-rose-500/10 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-full font-medium">YouTube Safe AI</span>
+          <!-- Processing Loader -->
+          <div id="scannerLoadingState"
+            class="hidden bg-slate-950 border border-slate-800 rounded-xl p-6 text-center space-y-2">
+            <div class="flex items-center justify-center gap-2 text-rose-400 text-xs font-semibold">
+              <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+              <span id="scannerLoadingText">ইউটিউব কমিউনিটি ও মনিটাইজেশন পলিসি স্ক্যান হচ্ছে...</span>
             </div>
-            <p class="text-xs text-slate-400">স্ক্রিপ্ট বা টেক্সট দিন ➜ ইউটিউব কমিউনিটি ও মনিটাইজেশন পলিসি চেক করুন ➜ ঝুঁকিপূর্ণ শব্দ সংশোধন করুন</p>
+            <p class="text-[11px] text-slate-500">জেমিনাই এআই আপনার টেক্সট অ্যানালাইসিস করে গালিগালাজ, ভায়োলেন্স, হেট
+              স্পিচ বা মনিটাইজেশন ঝুঁকি খুঁজছে...</p>
+          </div>
+
+          <!-- Policy Results Section (Initially Hidden) -->
+          <div id="policyResultsSection" class="hidden space-y-4 pt-2 border-t border-slate-800/80">
+
+            <!-- Score & Summary Banner -->
+            <div id="policyScoreBanner"
+              class="p-4 rounded-xl border flex flex-wrap items-center justify-between gap-4 bg-slate-950">
+              <div class="flex items-center gap-3.5">
+                <div id="safetyScoreCircle"
+                  class="w-13 h-13 rounded-xl flex items-center justify-center font-black text-lg border">
+                  100%
+                </div>
+                <div>
+                  <h4 id="safetyScoreTitle" class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                    ইউটিউব সেফটি স্কোর
+                    <span id="safetyStatusBadge"
+                      class="text-[10px] px-2 py-0.5 rounded-full font-semibold">নিরাপদ</span>
+                  </h4>
+                  <p id="safetyScoreSummary" class="text-xs text-slate-400 mt-0.5">সবকিছু ঠিক আছে, কোনো পলিসি লঙ্ঘন
+                    পাওয়া যায়নি।</p>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2">
+                <button id="applyAutoFixBtn"
+                  class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20">
+                  <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
+                  <span>নিরাপদ অটো-কারেকশন প্রয়োগ করুন</span>
+                </button>
+                <button id="sendToMainBoxBtn"
+                  class="text-xs bg-teal-600 hover:bg-teal-500 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-md shadow-teal-600/20">
+                  <i data-lucide="arrow-down-circle" class="w-3.5 h-3.5"></i>
+                  <span>মূল বক্সে নিন ও অডিও বানান</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Flagged Words List -->
+            <div id="violationsCard" class="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
+              <h5 class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                <span class="flex items-center gap-1.5">
+                  <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-amber-400"></i>
+                  <span>চিহ্নিত ঝুঁকিপূর্ণ শব্দ ও পলিসি বিশ্লেষণ (<span id="violationsCount">০</span> টি পাওয়া
+                    গেছে)</span>
+                </span>
+                <span class="text-[11px] text-slate-500">বিকল্প শব্দে ক্লিক করে পরিবর্তন করুন</span>
+              </h5>
+              <div id="violationsListContainer" class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                <!-- Dynamically populated violation cards -->
+              </div>
+            </div>
+
+            <!-- Comparative View / Editors -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Original Input Box -->
+              <div class="space-y-1.5">
+                <label class="text-xs font-medium text-slate-400 flex items-center justify-between">
+                  <span>মূল টেক্সট (ঝুঁকিপূর্ণ শব্দ হাইলাইট করা):</span>
+                  <button id="copyTranscribedBtn"
+                    class="text-[11px] text-teal-400 hover:underline flex items-center gap-1">
+                    <i data-lucide="copy" class="w-3 h-3"></i> কপি
+                  </button>
+                </label>
+                <div id="highlightedTextView"
+                  class="w-full min-h-[140px] max-h-[260px] overflow-y-auto bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-200 leading-relaxed font-normal whitespace-pre-wrap">
+                </div>
+              </div>
+
+              <!-- Safe Corrected Text Box -->
+              <div class="space-y-1.5">
+                <label class="text-xs font-medium text-emerald-400 flex items-center justify-between">
+                  <span>ইউটিউব-সেইফ কারেক্টেড টেক্সট (১০০% নিরাপদ):</span>
+                  <button id="copySafeBtn" class="text-[11px] text-emerald-400 hover:underline flex items-center gap-1">
+                    <i data-lucide="copy" class="w-3 h-3"></i> কপি
+                  </button>
+                </label>
+                <textarea id="safeTextEditor" rows="6"
+                  class="w-full min-h-[140px] max-h-[260px] bg-slate-950 border border-emerald-500/40 focus:border-emerald-500 rounded-xl p-3.5 text-xs text-slate-100 placeholder-slate-600 outline-none transition leading-relaxed resize-y font-normal"></textarea>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Input Section -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <i data-lucide="file-text" class="w-5 h-5 text-teal-400"></i>
+            <h2 class="text-base font-semibold text-white">আপনার মূল টেক্সট দিন</h2>
+            <span id="textStats" class="text-xs text-slate-400 bg-slate-800 px-2.5 py-0.5 rounded-full ml-2">০ অক্ষর | ০
+              লাইন</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <button id="checkMainTextPolicyBtn"
+              class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700 px-2.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+              <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-amber-400"></i>
+              <span>এই লেখার ইউটিউব পলিসি চেক</span>
+            </button>
+            <button id="loadDemoBtn"
+              class="text-xs text-slate-400 hover:text-slate-200 hover:underline flex items-center gap-1">
+              <i data-lucide="wand-2" class="w-3.5 h-3.5"></i> ডেমো টেক্সট দেখুন
+            </button>
+            <button id="clearTextBtn"
+              class="text-xs text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> ক্লিয়ার করুন
+            </button>
           </div>
         </div>
 
-        <button id="toggleAudioScannerBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
-          <span id="toggleScannerText">প্যানেলটি লুকান</span>
-          <i data-lucide="chevron-up" id="scannerChevronIcon" class="w-4 h-4 transition-transform duration-300"></i>
-        </button>
-      </div>
+        <!-- Expression Tags Toolbar (Google AI Studio Expression Control) -->
+        <div class="flex flex-wrap items-center gap-2 text-xs bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
+          <span class="text-amber-400 font-medium text-xs flex items-center gap-1.5 shrink-0">
+            <i data-lucide="smile" class="w-4 h-4 text-amber-400"></i>
+            <span>ভোকাল এক্সপ্রেশন:</span>
+          </span>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button type="button" onclick="insertExpressionTag('<laugh>')"
+              class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1"
+              title="ক্লিক করে টেক্সটে হাসির এক্সপ্রেশন যোগ করুন">
+              <span>&lt;laugh&gt;</span> <span class="text-[10px] text-slate-400 font-sans">হাসি</span>
+            </button>
+            <button type="button" onclick="insertExpressionTag('<gasp>')"
+              class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1"
+              title="ক্লিক করে বিস্ময় বা দম নেওয়ার ভাব যোগ করুন">
+              <span>&lt;gasp&gt;</span> <span class="text-[10px] text-slate-400 font-sans">বিস্ময়</span>
+            </button>
+            <button type="button" onclick="insertExpressionTag('<sigh>')"
+              class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1"
+              title="ক্লিক করে দীর্ঘশ্বাস যোগ করুন">
+              <span>&lt;sigh&gt;</span> <span class="text-[10px] text-slate-400 font-sans">দীর্ঘশ্বাস</span>
+            </button>
+            <button type="button" onclick="insertExpressionTag('<short pause>')"
+              class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1"
+              title="ক্লিক করে স্বাভাবিক মানুষের মত হালকা বিরতি দিন">
+              <span>&lt;short pause&gt;</span> <span class="text-[10px] text-slate-400 font-sans">বিরতি</span>
+            </button>
+            <button type="button" onclick="insertExpressionTag('<whisper>')"
+              class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1"
+              title="ক্লিক করে ফিসফিস করে কথা বলার ভাব যোগ করুন">
+              <span>&lt;whisper&gt;</span> <span class="text-[10px] text-slate-400 font-sans">ফিসফিস</span>
+            </button>
+          </div>
+        </div>
 
-      <!-- Scanner Body -->
-      <div id="audioScannerContent" class="space-y-4">
-        
-        <!-- Text Input for Policy Check -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <label for="policyTextInput" class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <i data-lucide="file-search" class="w-4 h-4 text-rose-400"></i>
-              <span>যে লেখাটি পলিসি চেক করতে চান:</span>
+        <!-- Textarea -->
+        <textarea id="mainTextInput" rows="8"
+          placeholder="এখানে আপনার সম্পূর্ণ লেখাটি পেস্ট বা টাইপ করুন... টেক্সট দেওয়ার সাথে সাথে তা স্বয়ংক্রিয়ভাবে প্রতি ১০ লাইনে ভাগ হয়ে নিচে বক্স আকারে চলে যাবে।"
+          class="w-full bg-slate-950/70 border border-slate-800 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 rounded-xl p-4 text-sm text-slate-100 placeholder-slate-500 outline-none transition resize-y leading-relaxed"></textarea>
+
+        <!-- Control Bar -->
+        <div class="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-800/60">
+          <div class="flex flex-wrap items-center gap-4 text-xs text-slate-300">
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <span class="text-slate-400">ভাগ করার ধরণ:</span>
+              <select id="splitModeSelect"
+                class="bg-slate-950 border border-slate-700 text-teal-400 font-medium rounded-lg px-2.5 py-1 outline-none focus:border-teal-500">
+                <option value="sentences" selected>বাক্য অনুযায়ী (দাঁড়ি '।' / ? / !)</option>
+                <option value="lines">এন্টার / প্যারাগ্রাফ অনুযায়ী (\n)</option>
+                <option value="words">শব্দ সংখ্যা অনুযায়ী</option>
+              </select>
             </label>
-            <div class="flex items-center gap-2">
-              <button id="pullFromMainBtn" type="button" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-teal-200 border border-slate-700 px-2.5 py-1 rounded-md transition flex items-center gap-1">
-                <i data-lucide="arrow-down-left" class="w-3 h-3 text-teal-400"></i>
-                <span>মূল বক্স থেকে লেখা আনুন</span>
-              </button>
-              <button id="clearPolicyTextBtn" type="button" class="text-[11px] text-slate-400 hover:text-rose-400 transition">
-                ক্লিয়ার
-              </button>
-            </div>
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <span id="unitLabel">প্রতি বক্সে বাক্যের সংখ্যা:</span>
+              <input type="number" id="linesPerBoxInput" min="1" max="100" value="10"
+                class="w-16 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-center font-bold text-teal-400 focus:border-teal-500 outline-none">
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" id="ignoreEmptyLines" checked
+                class="rounded bg-slate-950 border-slate-700 text-teal-600 focus:ring-0">
+              <span>খালি লাইন বাদ</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" id="autoPlayCheckbox" checked
+                class="rounded bg-slate-950 border-slate-700 text-teal-600 focus:ring-0">
+              <span>অটো-প্লে (তৈরি হলে স্বয়ংক্রিয় বাজবে)</span>
+            </label>
           </div>
 
-          <textarea id="policyTextInput" rows="4" placeholder="আপনার ভিডিওর স্ক্রিপ্ট বা যেকোনো টেক্সট এখানে পেস্ট বা টাইপ করুন... এরপর নিচের বাটনে ক্লিক করে ইউটিউবের পলিসির সাথে যাচাই করুন।" 
-            class="w-full bg-slate-950/70 border border-slate-800 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 rounded-xl p-3.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition resize-y leading-relaxed"></textarea>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="flex flex-wrap items-center gap-3">
-          <button id="startPolicyCheckBtn" class="bg-gradient-to-r from-rose-600 via-amber-600 to-teal-600 hover:from-rose-500 hover:to-teal-500 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-rose-600/20">
-            <i data-lucide="shield-alert" class="w-4 h-4"></i>
-            <span>ইউটিউব পলিসি স্ক্যান করুন</span>
-          </button>
-        </div>
-
-        <!-- Processing Loader -->
-        <div id="scannerLoadingState" class="hidden bg-slate-950 border border-slate-800 rounded-xl p-6 text-center space-y-2">
-          <div class="flex items-center justify-center gap-2 text-rose-400 text-xs font-semibold">
-            <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
-            <span id="scannerLoadingText">ইউটিউব কমিউনিটি ও মনিটাইজেশন পলিসি স্ক্যান হচ্ছে...</span>
+          <div class="flex items-center gap-2.5">
+            <button id="splitBtn"
+              class="bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs px-4 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-2 shadow-sm">
+              <i data-lucide="scissors" class="w-4 h-4 text-teal-400"></i>
+              <span>পুনরায় ভাগ করুন</span>
+            </button>
+            <button id="generateAllBtn"
+              class="bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-teal-600/20 disabled:opacity-50 disabled:cursor-not-allowed">
+              <i data-lucide="play-circle" class="w-4 h-4"></i>
+              <span id="generateAllText">সবগুলো একসাথে জেনারেট</span>
+            </button>
+            <button id="stopAllBtn"
+              class="hidden bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-rose-600/20 animate-pulse">
+              <i data-lucide="square" class="w-3.5 h-3.5 fill-current"></i>
+              <span>সব জেনারেশন থামান</span>
+            </button>
+            <button id="downloadZipBtn" disabled
+              class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs px-4 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+              <i data-lucide="archive" class="w-4 h-4 text-indigo-400"></i>
+              <span>সব অডিও ZIP ডাউনলোড</span>
+            </button>
           </div>
-          <p class="text-[11px] text-slate-500">জেমিনাই এআই আপনার টেক্সট অ্যানালাইসিস করে গালিগালাজ, ভায়োলেন্স, হেট স্পিচ বা মনিটাইজেশন ঝুঁকি খুঁজছে...</p>
-        </div>
-
-        <!-- Policy Results Section (Initially Hidden) -->
-        <div id="policyResultsSection" class="hidden space-y-4 pt-2 border-t border-slate-800/80">
-          
-          <!-- Score & Summary Banner -->
-          <div id="policyScoreBanner" class="p-4 rounded-xl border flex flex-wrap items-center justify-between gap-4 bg-slate-950">
-            <div class="flex items-center gap-3.5">
-              <div id="safetyScoreCircle" class="w-13 h-13 rounded-xl flex items-center justify-center font-black text-lg border">
-                100%
-              </div>
-              <div>
-                <h4 id="safetyScoreTitle" class="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  ইউটিউব সেফটি স্কোর
-                  <span id="safetyStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full font-semibold">নিরাপদ</span>
-                </h4>
-                <p id="safetyScoreSummary" class="text-xs text-slate-400 mt-0.5">সবকিছু ঠিক আছে, কোনো পলিসি লঙ্ঘন পাওয়া যায়নি।</p>
-              </div>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-2">
-              <button id="applyAutoFixBtn" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20">
-                <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
-                <span>নিরাপদ অটো-কারেকশন প্রয়োগ করুন</span>
-              </button>
-              <button id="sendToMainBoxBtn" class="text-xs bg-teal-600 hover:bg-teal-500 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-md shadow-teal-600/20">
-                <i data-lucide="arrow-down-circle" class="w-3.5 h-3.5"></i>
-                <span>মূল বক্সে নিন ও অডিও বানান</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Flagged Words List -->
-          <div id="violationsCard" class="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
-            <h5 class="text-xs font-semibold text-slate-300 flex items-center justify-between">
-              <span class="flex items-center gap-1.5">
-                <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-amber-400"></i>
-                <span>চিহ্নিত ঝুঁকিপূর্ণ শব্দ ও পলিসি বিশ্লেষণ (<span id="violationsCount">০</span> টি পাওয়া গেছে)</span>
-              </span>
-              <span class="text-[11px] text-slate-500">বিকল্প শব্দে ক্লিক করে পরিবর্তন করুন</span>
-            </h5>
-            <div id="violationsListContainer" class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-              <!-- Dynamically populated violation cards -->
-            </div>
-          </div>
-
-          <!-- Comparative View / Editors -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <!-- Original Input Box -->
-            <div class="space-y-1.5">
-              <label class="text-xs font-medium text-slate-400 flex items-center justify-between">
-                <span>মূল টেক্সট (ঝুঁকিপূর্ণ শব্দ হাইলাইট করা):</span>
-                <button id="copyTranscribedBtn" class="text-[11px] text-teal-400 hover:underline flex items-center gap-1">
-                  <i data-lucide="copy" class="w-3 h-3"></i> কপি
-                </button>
-              </label>
-              <div id="highlightedTextView" class="w-full min-h-[140px] max-h-[260px] overflow-y-auto bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-200 leading-relaxed font-normal whitespace-pre-wrap"></div>
-            </div>
-
-            <!-- Safe Corrected Text Box -->
-            <div class="space-y-1.5">
-              <label class="text-xs font-medium text-emerald-400 flex items-center justify-between">
-                <span>ইউটিউব-সেইফ কারেক্টেড টেক্সট (১০০% নিরাপদ):</span>
-                <button id="copySafeBtn" class="text-[11px] text-emerald-400 hover:underline flex items-center gap-1">
-                  <i data-lucide="copy" class="w-3 h-3"></i> কপি
-                </button>
-              </label>
-              <textarea id="safeTextEditor" rows="6" class="w-full min-h-[140px] max-h-[260px] bg-slate-950 border border-emerald-500/40 focus:border-emerald-500 rounded-xl p-3.5 text-xs text-slate-100 placeholder-slate-600 outline-none transition leading-relaxed resize-y font-normal"></textarea>
-            </div>
-          </div>
-
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Input Section -->
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-          <i data-lucide="file-text" class="w-5 h-5 text-teal-400"></i>
-          <h2 class="text-base font-semibold text-white">আপনার মূল টেক্সট দিন</h2>
-          <span id="textStats" class="text-xs text-slate-400 bg-slate-800 px-2.5 py-0.5 rounded-full ml-2">০ অক্ষর | ০ লাইন</span>
-        </div>
-        <div class="flex flex-wrap items-center gap-2.5">
-          <button id="checkMainTextPolicyBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700 px-2.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
-            <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-amber-400"></i>
-            <span>এই লেখার ইউটিউব পলিসি চেক</span>
-          </button>
-          <button id="loadDemoBtn" class="text-xs text-slate-400 hover:text-slate-200 hover:underline flex items-center gap-1">
-            <i data-lucide="wand-2" class="w-3.5 h-3.5"></i> ডেমো টেক্সট দেখুন
-          </button>
-          <button id="clearTextBtn" class="text-xs text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1">
-            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> ক্লিয়ার করুন
-          </button>
         </div>
       </div>
 
-      <!-- Expression Tags Toolbar (Google AI Studio Expression Control) -->
-      <div class="flex flex-wrap items-center gap-2 text-xs bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
-        <span class="text-amber-400 font-medium text-xs flex items-center gap-1.5 shrink-0">
-          <i data-lucide="smile" class="w-4 h-4 text-amber-400"></i>
-          <span>ভোকাল এক্সপ্রেশন:</span>
-        </span>
-        <div class="flex flex-wrap items-center gap-1.5">
-          <button type="button" onclick="insertExpressionTag('<laugh>')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1" title="ক্লিক করে টেক্সটে হাসির এক্সপ্রেশন যোগ করুন">
-            <span>&lt;laugh&gt;</span> <span class="text-[10px] text-slate-400 font-sans">হাসি</span>
-          </button>
-          <button type="button" onclick="insertExpressionTag('<gasp>')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1" title="ক্লিক করে বিস্ময় বা দম নেওয়ার ভাব যোগ করুন">
-            <span>&lt;gasp&gt;</span> <span class="text-[10px] text-slate-400 font-sans">বিস্ময়</span>
-          </button>
-          <button type="button" onclick="insertExpressionTag('<sigh>')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1" title="ক্লিক করে দীর্ঘশ্বাস যোগ করুন">
-            <span>&lt;sigh&gt;</span> <span class="text-[10px] text-slate-400 font-sans">দীর্ঘশ্বাস</span>
-          </button>
-          <button type="button" onclick="insertExpressionTag('<short pause>')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1" title="ক্লিক করে স্বাভাবিক মানুষের মত হালকা বিরতি দিন">
-            <span>&lt;short pause&gt;</span> <span class="text-[10px] text-slate-400 font-sans">বিরতি</span>
-          </button>
-          <button type="button" onclick="insertExpressionTag('<whisper>')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition font-mono text-[11px] flex items-center gap-1" title="ক্লিক করে ফিসফিস করে কথা বলার ভাব যোগ করুন">
-            <span>&lt;whisper&gt;</span> <span class="text-[10px] text-slate-400 font-sans">ফিসফিস</span>
-          </button>
-        </div>
+      <!-- Alert / Toast Banner -->
+      <div id="toastNotification"
+        class="hidden transition-all duration-300 rounded-xl p-4 text-xs flex items-center justify-between border">
       </div>
 
-      <!-- Textarea -->
-      <textarea id="mainTextInput" rows="8" placeholder="এখানে আপনার সম্পূর্ণ লেখাটি পেস্ট বা টাইপ করুন... টেক্সট দেওয়ার সাথে সাথে তা স্বয়ংক্রিয়ভাবে প্রতি ১০ লাইনে ভাগ হয়ে নিচে বক্স আকারে চলে যাবে।" 
-        class="w-full bg-slate-950/70 border border-slate-800 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 rounded-xl p-4 text-sm text-slate-100 placeholder-slate-500 outline-none transition resize-y leading-relaxed"></textarea>
-
-      <!-- Control Bar -->
-      <div class="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-800/60">
-        <div class="flex flex-wrap items-center gap-4 text-xs text-slate-300">
-          <label class="flex items-center gap-2 cursor-pointer select-none">
-            <span class="text-slate-400">ভাগ করার ধরণ:</span>
-            <select id="splitModeSelect" class="bg-slate-950 border border-slate-700 text-teal-400 font-medium rounded-lg px-2.5 py-1 outline-none focus:border-teal-500">
-              <option value="sentences" selected>বাক্য অনুযায়ী (দাঁড়ি '।' / ? / !)</option>
-              <option value="lines">এন্টার / প্যারাগ্রাফ অনুযায়ী (\n)</option>
-              <option value="words">শব্দ সংখ্যা অনুযায়ী</option>
-            </select>
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer select-none">
-            <span id="unitLabel">প্রতি বক্সে বাক্যের সংখ্যা:</span>
-            <input type="number" id="linesPerBoxInput" min="1" max="100" value="10" 
-              class="w-16 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-center font-bold text-teal-400 focus:border-teal-500 outline-none">
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer select-none">
-            <input type="checkbox" id="ignoreEmptyLines" checked class="rounded bg-slate-950 border-slate-700 text-teal-600 focus:ring-0">
-            <span>খালি লাইন বাদ</span>
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer select-none">
-            <input type="checkbox" id="autoPlayCheckbox" checked class="rounded bg-slate-950 border-slate-700 text-teal-600 focus:ring-0">
-            <span>অটো-প্লে (তৈরি হলে স্বয়ংক্রিয় বাজবে)</span>
-          </label>
+      <!-- Chunks / Boxes Output Section -->
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <i data-lucide="layout-grid" class="w-4 h-4 text-teal-400"></i>
+            ভাগ করা বক্সসমূহ (<span id="boxCountDisplay">০</span> টি বক্স)
+          </h3>
+          <p class="text-xs text-slate-400">প্রতিটি বক্সে ১০ লাইন টেক্সট ও পাশে অডিও নিয়ন্ত্রণ রয়েছে</p>
         </div>
 
-        <div class="flex items-center gap-2.5">
-          <button id="splitBtn" class="bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs px-4 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-2 shadow-sm">
-            <i data-lucide="scissors" class="w-4 h-4 text-teal-400"></i>
-            <span>পুনরায় ভাগ করুন</span>
-          </button>
-          <button id="generateAllBtn" class="bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-teal-600/20 disabled:opacity-50 disabled:cursor-not-allowed">
-            <i data-lucide="play-circle" class="w-4 h-4"></i>
-            <span id="generateAllText">সবগুলো একসাথে জেনারেট</span>
-          </button>
-          <button id="stopAllBtn" class="hidden bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-rose-600/20 animate-pulse">
-            <i data-lucide="square" class="w-3.5 h-3.5 fill-current"></i>
-            <span>সব জেনারেশন থামান</span>
-          </button>
-          <button id="downloadZipBtn" disabled class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs px-4 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
-            <i data-lucide="archive" class="w-4 h-4 text-indigo-400"></i>
-            <span>সব অডিও ZIP ডাউনলোড</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Alert / Toast Banner -->
-    <div id="toastNotification" class="hidden transition-all duration-300 rounded-xl p-4 text-xs flex items-center justify-between border"></div>
-
-    <!-- Chunks / Boxes Output Section -->
-    <div class="space-y-4">
-      <div class="flex items-center justify-between">
-        <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
-          <i data-lucide="layout-grid" class="w-4 h-4 text-teal-400"></i>
-          ভাগ করা বক্সসমূহ (<span id="boxCountDisplay">০</span> টি বক্স)
-        </h3>
-        <p class="text-xs text-slate-400">প্রতিটি বক্সে ১০ লাইন টেক্সট ও পাশে অডিও নিয়ন্ত্রণ রয়েছে</p>
-      </div>
-
-      <!-- Container where cards are injected -->
-      <div id="chunksContainer" class="space-y-4">
-        <!-- Empty State -->
-        <div id="emptyState" class="bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl p-12 text-center space-y-3">
-          <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
-            <i data-lucide="text-quote" class="w-6 h-6"></i>
+        <!-- Container where cards are injected -->
+        <div id="chunksContainer" class="space-y-4">
+          <!-- Empty State -->
+          <div id="emptyState"
+            class="bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl p-12 text-center space-y-3">
+            <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+              <i data-lucide="text-quote" class="w-6 h-6"></i>
+            </div>
+            <h4 class="text-sm font-medium text-slate-300">কোনো টেক্সট ইনপুট করা হয়নি</h4>
+            <p class="text-xs text-slate-500 max-w-sm mx-auto">উপরের বক্সে আপনার টেক্সট পেস্ট করুন অথবা "ডেমো টেক্সট
+              দেখুন" বাটনে ক্লিক করে পরীক্ষা করুন।</p>
           </div>
-          <h4 class="text-sm font-medium text-slate-300">কোনো টেক্সট ইনপুট করা হয়নি</h4>
-          <p class="text-xs text-slate-500 max-w-sm mx-auto">উপরের বক্সে আপনার টেক্সট পেস্ট করুন অথবা "ডেমো টেক্সট দেখুন" বাটনে ক্লিক করে পরীক্ষা করুন।</p>
         </div>
       </div>
-    </div>
 
-  </main>
+    </main>
   </div>
 
   <!-- Tab 2: Text to Video Content (YouTube Video Studio: Text to Scene Audio + Image) -->
   <div id="tabContentVideo" class="flex-1 flex flex-col w-full hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
-      
+
       <!-- Video Studio Hero Header -->
-      <div class="bg-gradient-to-b from-slate-900 via-slate-900 to-slate-900/95 border border-slate-800 rounded-2xl p-6 sm:p-7 shadow-xl space-y-5">
+      <div
+        class="bg-gradient-to-b from-slate-900 via-slate-900 to-slate-900/95 border border-slate-800 rounded-2xl p-6 sm:p-7 shadow-xl space-y-5">
         <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
           <div class="flex items-center gap-3.5">
-            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-indigo-600/25">
+            <div
+              class="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-indigo-600/25">
               <i data-lucide="clapperboard" class="w-6 h-6"></i>
             </div>
             <div>
               <div class="flex flex-wrap items-center gap-2">
                 <h2 class="text-lg font-bold text-white">Gemini YouTube Video Studio</h2>
-                <span class="text-[11px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full font-medium">16:9 HD &amp; 9:16 Shorts</span>
-                <span class="text-[10px] bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded-full font-semibold">১০০% ফ্রি এআই</span>
-                <span class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-medium">No Watermark</span>
+                <span
+                  class="text-[11px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full font-medium">16:9
+                  HD &amp; 9:16 Shorts</span>
+                <span
+                  class="text-[10px] bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded-full font-semibold">১০০%
+                  ফ্রি এআই</span>
+                <span
+                  class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-medium">No
+                  Watermark</span>
               </div>
-              <p class="text-xs text-slate-400 mt-0.5">সম্পূর্ণ গল্প দিন ➜ প্রতি দৃশ্যের কথা অনুযায়ী সিনেমাটিক ছবি ও মানুষের মত নিখুঁত স্টুডিও ভয়েস তৈরি করুন</p>
+              <p class="text-xs text-slate-400 mt-0.5">সম্পূর্ণ গল্প দিন ➜ প্রতি দৃশ্যের কথা অনুযায়ী সিনেমাটিক ছবি ও
+                মানুষের মত নিখুঁত স্টুডিও ভয়েস তৈরি করুন</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <span class="inline-flex items-center gap-1.5 text-xs text-teal-400 bg-teal-500/10 border border-teal-500/20 px-3 py-1.5 rounded-lg">
+            <span
+              class="inline-flex items-center gap-1.5 text-xs text-teal-400 bg-teal-500/10 border border-teal-500/20 px-3 py-1.5 rounded-lg">
               <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
               <span>Scene-by-Scene Studio</span>
             </span>
@@ -471,10 +551,12 @@ AIzaSy... (২য় একাউন্ট)"
         </div>
 
         <!-- Pollinations Multi-Key Management Panel in Text to Video Tab -->
-        <div class="bg-gradient-to-r from-indigo-950/60 via-slate-900 to-slate-950 border border-indigo-500/30 rounded-2xl p-4 shadow-lg space-y-3">
+        <div
+          class="bg-gradient-to-r from-indigo-950/60 via-slate-900 to-slate-950 border border-indigo-500/30 rounded-2xl p-4 shadow-lg space-y-3">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-indigo-600/30">
+              <div
+                class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-indigo-600/30">
                 <i data-lucide="key" class="w-4 h-4"></i>
               </div>
               <div>
@@ -482,13 +564,19 @@ AIzaSy... (২য় একাউন্ট)"
                   <h4 class="text-xs font-bold text-white flex items-center gap-1.5">
                     <span>Pollinations Image API Keys</span>
                   </h4>
-                  <span class="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-medium">অটো-সুইচিং সক্রিয়</span>
-                  <span id="tabVideoPollinationsKeyBadge" class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">১টি Key সক্রিয়</span>
+                  <span
+                    class="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-medium">অটো-সুইচিং
+                    সক্রিয়</span>
+                  <span id="tabVideoPollinationsKeyBadge"
+                    class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">১টি
+                    Key সক্রিয়</span>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-0.5">প্রতি লাইনে আলাদা আলাদা Pollinations API Key দিন — একটার কোটা শেষ হলে অন্যটি দিয়ে স্বয়ংক্রিয়ভাবে কোনো এরর ছাড়াই ছবি তৈরি হবে</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">প্রতি লাইনে আলাদা আলাদা Pollinations API Key দিন — একটার
+                  কোটা শেষ হলে অন্যটি দিয়ে স্বয়ংক্রিয়ভাবে কোনো এরর ছাড়াই ছবি তৈরি হবে</p>
               </div>
             </div>
-            <a href="https://enter.pollinations.ai" target="_blank" class="text-xs text-indigo-400 hover:text-indigo-300 underline flex items-center gap-1.5 font-medium bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg border border-indigo-500/25 transition shadow-sm">
+            <a href="https://enter.pollinations.ai" target="_blank"
+              class="text-xs text-indigo-400 hover:text-indigo-300 underline flex items-center gap-1.5 font-medium bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg border border-indigo-500/25 transition shadow-sm">
               <span>ফ্রি কী নিন</span> <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
             </a>
           </div>
@@ -498,10 +586,12 @@ AIzaSy... (২য় একাউন্ট)"
               <textarea id="tabVideoPollinationsKeysInput" rows="2" placeholder="প্রতি লাইনে আলাদা একাউন্টের Pollinations API Key দিন...
 sk_fizHkhVWIBfi5lXUwBZv1QzEayM5u49H (১ম একাউন্ট)
 sk_... (২য় একাউন্ট)
-sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-xs text-slate-100 rounded-xl p-3 outline-none transition font-mono resize-y leading-relaxed shadow-inner"></textarea>
+sk_... (৩য় একাউন্ট)"
+                class="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-xs text-slate-100 rounded-xl p-3 outline-none transition font-mono resize-y leading-relaxed shadow-inner"></textarea>
             </div>
             <div class="flex flex-col gap-2 sm:col-span-1">
-              <button id="tabVideoSavePollinationsKeysBtn" type="button" class="w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-teal-600 hover:from-indigo-500 hover:to-teal-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-md shadow-indigo-600/30 active:scale-[0.98]">
+              <button id="tabVideoSavePollinationsKeysBtn" type="button"
+                class="w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-teal-600 hover:from-indigo-500 hover:to-teal-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-md shadow-indigo-600/30 active:scale-[0.98]">
                 <i data-lucide="save" class="w-4 h-4"></i>
                 <span>Save Keys</span>
               </button>
@@ -513,14 +603,16 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
         </div>
 
         <!-- Video Format & Visual Controls -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-slate-950/70 rounded-xl border border-slate-800/80">
+        <div
+          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-slate-950/70 rounded-xl border border-slate-800/80">
           <!-- Aspect Ratio -->
           <div class="space-y-1.5">
             <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
               <i data-lucide="crop" class="w-3.5 h-3.5 text-indigo-400"></i>
               <span>ভিডিও ফরম্যাট (Ratio):</span>
             </label>
-            <select id="videoAspectRatio" class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
+            <select id="videoAspectRatio"
+              class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
               <option value="16:9" selected>16:9 (YouTube ল্যান্ডস্কেপ 1280×720)</option>
               <option value="9:16">9:16 (YouTube Shorts / Reels 720×1280)</option>
               <option value="1:1">1:1 (স্কয়ার - সোশ্যাল পোস্ট 1024×1024)</option>
@@ -533,7 +625,8 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
               <i data-lucide="palette" class="w-3.5 h-3.5 text-indigo-400"></i>
               <span>ছবির আর্ট স্টাইল:</span>
             </label>
-            <select id="videoVisualStyle" class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
+            <select id="videoVisualStyle"
+              class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
               <option value="cinematic" selected>Cinematic Photorealistic (বাস্তবসম্মত সিনেমাটিক 8K)</option>
               <option value="pixar">3D Animation / Pixar (৩ডি এনিমেশন কার্টুন)</option>
               <option value="documentary">Historical Documentary (ঐতিহাসিক ও তথ্যচিত্র)</option>
@@ -548,7 +641,8 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
               <i data-lucide="mic" class="w-3.5 h-3.5 text-teal-400"></i>
               <span>ভিডিও ভয়েস (কণ্ঠ):</span>
             </label>
-            <select id="videoVoiceSelect" class="w-full bg-slate-900 border border-slate-700 focus:border-teal-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
+            <select id="videoVoiceSelect"
+              class="w-full bg-slate-900 border border-slate-700 focus:border-teal-500 text-xs text-slate-100 rounded-lg px-3 py-2 outline-none transition">
               <option value="Kore" selected>Kore (শান্ত ও মিষ্টি নারী কণ্ঠ)</option>
               <option value="Puck">Puck (স্পষ্ট ও প্রাণবন্ত পুরুষ কণ্ঠ)</option>
               <option value="Aoede">Aoede (উষ্ণ ও স্পষ্ট নারী কণ্ঠ)</option>
@@ -566,13 +660,66 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
               </span>
             </label>
             <div class="flex items-center gap-2">
-              <input type="number" id="videoUnitsPerScene" min="1" max="20" value="2" 
+              <input type="number" id="videoUnitsPerScene" min="1" max="20" value="2"
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 font-bold text-teal-400 focus:border-teal-500 outline-none text-xs">
-              <select id="videoSplitMode" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-2.5 py-2 outline-none focus:border-teal-500">
+              <select id="videoSplitMode"
+                class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-2.5 py-2 outline-none focus:border-teal-500">
                 <option value="sentences" selected>বাক্য</option>
                 <option value="lines">প্যারাগ্রাফ</option>
               </select>
             </div>
+          </div>
+        </div>
+
+        <!-- Consistent Character Lock & Islamic Sacred Veil Card -->
+        <div class="bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/30 rounded-2xl p-4 shadow-lg space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-600/30">
+                <i data-lucide="users" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <h4 class="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span>সকল চরিত্রের ধারাবাহিকতা ও মুখাবরণ (Multi-Character Face Lock)</span>
+                  </h4>
+                  <span id="characterLockBadge" class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">সকল চরিত্র লক্ড 🟢</span>
+                  <span id="islamicVeilBadge" class="hidden text-[10px] font-semibold text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">পবিত্র সাদা মুখাবরণ সক্রিয় 🕊️</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-0.5">গল্পের শুরু থেকে শেষ পর্যন্ত প্রত্যেকটা ব্যক্তির চেহারা, গায়ের রঙ ও পোশাক ১০০% এক থাকবে। শুরুতে যার চেহারা যেমন আসবে শেষ পর্যন্ত তাই থাকবে। ইসলামের মহামানবদের ক্ষেত্রে পবিত্র সাদা আলোর মুখাবরণ বজায় থাকবে।</p>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2.5">
+              <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-300 bg-slate-900 border border-slate-800 hover:border-slate-700 px-3 py-1.5 rounded-xl transition">
+                <input type="checkbox" id="consistentCharacterToggle" checked class="w-4 h-4 text-emerald-600 bg-slate-950 border-slate-700 rounded focus:ring-emerald-500 focus:ring-1">
+                <span>সকল চরিত্রের চেহারা লক রাখুন</span>
+              </label>
+              <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-amber-300 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-xl transition">
+                <input type="checkbox" id="islamicVeilForceToggle" class="w-4 h-4 text-amber-500 bg-slate-950 border-slate-700 rounded focus:ring-amber-500 focus:ring-1">
+                <span>পবিত্র সাদা মুখাবরণ বাধ্যতামূলক</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Character Description Input -->
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+            <div class="sm:col-span-9">
+              <input type="text" id="characterAnchorInput" 
+                placeholder="প্রধান চরিত্রের পরিচয় (যেমন: ৩০ বছর বয়সী শ্যামলা রঙের দাড়িওয়ালা ব্যক্তি, পরনে সাদা কুর্তা)" 
+                class="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 text-xs text-slate-200 rounded-xl px-3.5 py-2.5 outline-none transition font-sans">
+            </div>
+            <div class="sm:col-span-3 flex items-center gap-2">
+              <button id="autoDetectCharacterBtn" type="button" class="w-full bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-white border border-slate-700 text-xs font-medium px-3 py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>গল্প থেকে সকল চরিত্র অটো-লক</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Detected Story Cast & Character Chips Container -->
+          <div id="characterCastContainer" class="pt-1 flex flex-wrap items-center gap-2 empty:hidden">
+            <!-- Dynamically populated with character tags -->
           </div>
         </div>
 
@@ -581,58 +728,72 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2">
               <i data-lucide="file-text" class="w-4 h-4 text-indigo-400"></i>
-              <label for="videoScriptInput" class="text-xs font-semibold text-white">আপনার পুরো গল্প বা ইউটিউব স্ক্রিপ্ট দিন:</label>
-              <span id="videoTextStats" class="text-[11px] text-slate-400 bg-slate-950 px-2.5 py-0.5 rounded-full border border-slate-800">০ অক্ষর | ০ লাইন | ০ দৃশ্য</span>
+              <label for="videoScriptInput" class="text-xs font-semibold text-white">আপনার পুরো গল্প বা ইউটিউব স্ক্রিপ্ট
+                দিন:</label>
+              <span id="videoTextStats"
+                class="text-[11px] text-slate-400 bg-slate-950 px-2.5 py-0.5 rounded-full border border-slate-800">০
+                অক্ষর | ০ লাইন | ০ দৃশ্য</span>
             </div>
             <div class="flex items-center gap-2">
-              <button id="videoLoadDemoBtn" type="button" class="text-xs text-indigo-300 hover:text-indigo-200 hover:underline flex items-center gap-1">
+              <button id="videoLoadDemoBtn" type="button"
+                class="text-xs text-indigo-300 hover:text-indigo-200 hover:underline flex items-center gap-1">
                 <i data-lucide="wand-2" class="w-3.5 h-3.5 text-indigo-400"></i> ডেমো গল্প দেখুন
               </button>
-              <button id="videoClearTextBtn" type="button" class="text-xs text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1">
+              <button id="videoClearTextBtn" type="button"
+                class="text-xs text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1">
                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> ক্লিয়ার করুন
               </button>
             </div>
           </div>
 
-          <textarea id="videoScriptInput" rows="6" placeholder="এখানে আপনার ইউটিউব ভিডিওর সম্পূর্ণ গল্প বা স্ক্রিপ্ট পেস্ট করুন... টেক্সট দেওয়ার সাথে সাথে তা স্বয়ংক্রিয়ভাবে আলাদা আলাদা দৃশ্যে ভাগ হয়ে নিচের বক্সে তৈরি হয়ে যাবে।" 
+          <textarea id="videoScriptInput" rows="6"
+            placeholder="এখানে আপনার ইউটিউব ভিডিওর সম্পূর্ণ গল্প বা স্ক্রিপ্ট পেস্ট করুন... টেক্সট দেওয়ার সাথে সাথে তা স্বয়ংক্রিয়ভাবে আলাদা আলাদা দৃশ্যে ভাগ হয়ে নিচের বক্সে তৈরি হয়ে যাবে।"
             class="w-full bg-slate-950/80 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl p-4 text-xs sm:text-sm text-slate-100 placeholder-slate-500 outline-none transition resize-y leading-relaxed font-normal"></textarea>
         </div>
 
         <!-- Master Action Controls -->
         <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/80">
           <div class="flex flex-wrap items-center gap-2.5">
-            <button id="videoSplitBtn" type="button" class="bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5 shadow-sm">
+            <button id="videoSplitBtn" type="button"
+              class="bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5 shadow-sm">
               <i data-lucide="scissors" class="w-4 h-4 text-teal-400"></i>
               <span>পুনরায় সিন ভাগ করুন</span>
             </button>
-            <button id="videoGenerateAllBothBtn" type="button" class="bg-gradient-to-r from-indigo-600 via-purple-600 to-teal-600 hover:from-indigo-500 hover:to-teal-500 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-indigo-600/25">
+            <button id="videoGenerateAllBothBtn" type="button"
+              class="bg-gradient-to-r from-indigo-600 via-purple-600 to-teal-600 hover:from-indigo-500 hover:to-teal-500 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-indigo-600/25">
               <i data-lucide="play-circle" class="w-4 h-4"></i>
               <span id="videoGenerateAllBothText">🎬 ভিডিও ও অডিও জেনারেট</span>
             </button>
-            <button id="videoGenerateAllMotionBtn" type="button" class="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium text-xs px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-purple-600/20">
+            <button id="videoGenerateAllMotionBtn" type="button"
+              class="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium text-xs px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-purple-600/20">
               <i data-lucide="video" class="w-4 h-4"></i>
               <span>সব ৩ডি মোশন</span>
             </button>
-            <button id="videoGenerateAllImageBtn" type="button" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white font-medium text-xs px-3 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+            <button id="videoGenerateAllImageBtn" type="button"
+              class="bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white font-medium text-xs px-3 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
               <i data-lucide="image" class="w-4 h-4 text-indigo-400"></i>
               <span>শুধু সব ছবি</span>
             </button>
-            <button id="videoGenerateAllAudioBtn" type="button" class="bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-white font-medium text-xs px-3 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+            <button id="videoGenerateAllAudioBtn" type="button"
+              class="bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-white font-medium text-xs px-3 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
               <i data-lucide="volume-2" class="w-4 h-4 text-teal-400"></i>
               <span>শুধু সব অডিও</span>
             </button>
-            <button id="videoStopBtn" type="button" class="hidden bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-rose-600/20 animate-pulse">
+            <button id="videoStopBtn" type="button"
+              class="hidden bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-rose-600/20 animate-pulse">
               <i data-lucide="square" class="w-3.5 h-3.5 fill-current"></i>
               <span>জেনারেশন থামান</span>
             </button>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
-            <button id="videoRenderFullMp4Btn" type="button" disabled class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-emerald-600/20 disabled:opacity-40 disabled:cursor-not-allowed">
+            <button id="videoRenderFullMp4Btn" type="button" disabled
+              class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-emerald-600/20 disabled:opacity-40 disabled:cursor-not-allowed">
               <i data-lucide="film" class="w-4 h-4"></i>
               <span>🎬 সম্পূর্ণ MP4 ভিডিও তৈরি</span>
             </button>
-            <button id="videoDownloadZipBtn" type="button" disabled class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-medium text-xs px-4 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+            <button id="videoDownloadZipBtn" type="button" disabled
+              class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-medium text-xs px-4 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
               <i data-lucide="download" class="w-4 h-4 text-indigo-400"></i>
               <span>অডিও ও ভিডিও ডাউনলোড করুন</span>
             </button>
@@ -640,18 +801,22 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
         </div>
 
         <!-- Multi-Key Auto-Switching Status Info -->
-        <div class="flex items-center justify-between bg-slate-950/60 border border-slate-800/80 rounded-xl px-3.5 py-2 text-[11px] text-slate-400">
+        <div
+          class="flex items-center justify-between bg-slate-950/60 border border-slate-800/80 rounded-xl px-3.5 py-2 text-[11px] text-slate-400">
           <div class="flex items-center gap-2">
             <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400 shrink-0"></i>
-            <span>স্মার্ট অটো-সুইচিং সক্রিয়: যেকোনো একটি কী-এর কোটা শেষ হলে পরবর্তী কী স্বয়ংক্রিয়ভাবে চালু হয়ে ছবি তৈরি সম্পূর্ণ করবে।</span>
+            <span>স্মার্ট অটো-সুইচিং সক্রিয়: যেকোনো একটি কী-এর কোটা শেষ হলে পরবর্তী কী স্বয়ংক্রিয়ভাবে চালু হয়ে ছবি তৈরি
+              সম্পূর্ণ করবে।</span>
           </div>
-          <button type="button" onclick="document.getElementById('tabVideoPollinationsKeysInput').focus()" class="text-indigo-400 hover:text-indigo-300 font-medium text-[11px] underline shrink-0 ml-2">
+          <button type="button" onclick="document.getElementById('tabVideoPollinationsKeysInput').focus()"
+            class="text-indigo-400 hover:text-indigo-300 font-medium text-[11px] underline shrink-0 ml-2">
             কী যুক্ত করুন
           </button>
         </div>
 
         <!-- Progress Banner -->
-        <div id="videoProgressBanner" class="hidden bg-slate-950 border border-indigo-500/30 rounded-xl p-3.5 space-y-2">
+        <div id="videoProgressBanner"
+          class="hidden bg-slate-950 border border-indigo-500/30 rounded-xl p-3.5 space-y-2">
           <div class="flex items-center justify-between text-xs">
             <span id="videoProgressText" class="text-indigo-300 font-medium flex items-center gap-2">
               <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
@@ -660,7 +825,9 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
             <span id="videoProgressPercent" class="text-teal-400 font-bold">০%</span>
           </div>
           <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-            <div id="videoProgressBar" class="bg-gradient-to-r from-indigo-500 via-purple-500 to-teal-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            <div id="videoProgressBar"
+              class="bg-gradient-to-r from-indigo-500 via-purple-500 to-teal-500 h-2 rounded-full transition-all duration-300"
+              style="width: 0%"></div>
           </div>
         </div>
       </div>
@@ -678,12 +845,14 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
         <!-- Dynamic Scene Cards Injected Here -->
         <div id="videoScenesContainer" class="space-y-4">
           <!-- Empty State -->
-          <div id="videoEmptyState" class="bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl p-12 text-center space-y-3">
+          <div id="videoEmptyState"
+            class="bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl p-12 text-center space-y-3">
             <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
               <i data-lucide="clapperboard" class="w-6 h-6 text-indigo-400"></i>
             </div>
             <h4 class="text-sm font-medium text-slate-300">কোনো স্ক্রিপ্ট ইনপুট করা হয়নি</h4>
-            <p class="text-xs text-slate-500 max-w-sm mx-auto">উপরের বক্সে আপনার পুরো গল্প বা ইউটিউব স্ক্রিপ্ট পেস্ট করুন অথবা "ডেমো গল্প দেখুন" বাটনে ক্লিক করে পরীক্ষা করুন।</p>
+            <p class="text-xs text-slate-500 max-w-sm mx-auto">উপরের বক্সে আপনার পুরো গল্প বা ইউটিউব স্ক্রিপ্ট পেস্ট
+              করুন অথবা "ডেমো গল্প দেখুন" বাটনে ক্লিক করে পরীক্ষা করুন।</p>
           </div>
         </div>
       </div>
@@ -692,23 +861,29 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
   </div>
 
   <!-- Video Render & Player Modal (Ken Burns Full MP4 Generator) -->
-  <div id="videoRenderModal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="relative w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh]">
+  <div id="videoRenderModal"
+    class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+    <div
+      class="relative w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh]">
       <!-- Modal Header -->
       <div class="flex items-center justify-between p-4 bg-slate-950 border-b border-slate-800">
         <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+          <div
+            class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
             <i data-lucide="clapperboard" class="w-4 h-4"></i>
           </div>
           <div>
             <h4 class="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
               <span>সিনেমাটিক ভিডিও রেন্ডারার ও প্লেয়ার</span>
-              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">১০০% ফ্রি মোশন</span>
+              <span
+                class="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">১০০%
+                ফ্রি মোশন</span>
             </h4>
             <p class="text-[11px] text-slate-400">Ken Burns ক্যামেরা মোশন এবং জেমিনাই ভয়েসওভার দিয়ে তৈরি ফুল ভিডিও</p>
           </div>
         </div>
-        <button id="videoRenderModalCloseBtn" type="button" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition">
+        <button id="videoRenderModalCloseBtn" type="button"
+          class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
@@ -725,25 +900,32 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
             <span id="videoRenderPercent" class="text-teal-300 font-bold font-mono">০%</span>
           </div>
           <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
-            <div id="videoRenderProgressBar" class="bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-500 h-2.5 rounded-full transition-all duration-200" style="width: 0%"></div>
+            <div id="videoRenderProgressBar"
+              class="bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-500 h-2.5 rounded-full transition-all duration-200"
+              style="width: 0%"></div>
           </div>
         </div>
 
         <!-- Live Canvas Preview Container (Active during render) -->
-        <div id="videoRenderCanvasWrapper" class="w-full flex items-center justify-center bg-black/90 rounded-xl overflow-hidden border border-slate-800 shadow-inner max-h-[55vh]">
-          <canvas id="videoRenderCanvas" width="1280" height="720" class="max-w-full max-h-[52vh] object-contain"></canvas>
+        <div id="videoRenderCanvasWrapper"
+          class="w-full flex items-center justify-center bg-black/90 rounded-xl overflow-hidden border border-slate-800 shadow-inner max-h-[55vh]">
+          <canvas id="videoRenderCanvas" width="1280" height="720"
+            class="max-w-full max-h-[52vh] object-contain"></canvas>
         </div>
 
         <!-- Final Video Player (Displayed when complete) -->
         <div id="videoRenderPlayerWrapper" class="w-full hidden flex-col items-center space-y-3">
-          <video id="videoRenderPlayer" controls playsinline class="w-full rounded-xl bg-black border border-slate-800 max-h-[55vh] shadow-2xl"></video>
-          <div class="w-full bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <video id="videoRenderPlayer" controls playsinline
+            class="w-full rounded-xl bg-black border border-slate-800 max-h-[55vh] shadow-2xl"></video>
+          <div
+            class="w-full bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div class="flex items-center gap-2 text-slate-300">
               <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
               <span>ভিডিও সম্পূর্ণ তৈরি হয়েছে! সরাসরি ইউটিউব বা শর্টসে আপলোড করতে পারেন।</span>
             </div>
             <div class="flex items-center gap-2">
-              <a id="videoRenderDownloadBtn" href="#" download="YouTube_Story_Video.mp4" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-600/25">
+              <a id="videoRenderDownloadBtn" href="#" download="YouTube_Story_Video.mp4"
+                class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-600/25">
                 <i data-lucide="download" class="w-4 h-4"></i>
                 <span>ভিডিও ডাউনলোড করুন (.MP4)</span>
               </a>
@@ -754,8 +936,10 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
 
       <!-- Modal Footer -->
       <div class="p-3.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs">
-        <p class="text-slate-500 text-[11px]">কোনো পেইড API ছাড়া আপনার ব্রাউজারের Canvas ও Web Audio ইঞ্জিন দিয়ে রেন্ডার হচ্ছে</p>
-        <button id="videoRenderCancelBtn" type="button" class="text-rose-400 hover:text-rose-300 px-3 py-1.5 rounded-lg hover:bg-slate-800 transition">
+        <p class="text-slate-500 text-[11px]">কোনো পেইড API ছাড়া আপনার ব্রাউজারের Canvas ও Web Audio ইঞ্জিন দিয়ে রেন্ডার
+          হচ্ছে</p>
+        <button id="videoRenderCancelBtn" type="button"
+          class="text-rose-400 hover:text-rose-300 px-3 py-1.5 rounded-lg hover:bg-slate-800 transition">
           বাতিল করুন
         </button>
       </div>
@@ -763,21 +947,26 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
   </div>
 
   <!-- Image Lightbox Modal -->
-  <div id="videoImageModal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="relative max-w-5xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+  <div id="videoImageModal"
+    class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+    <div
+      class="relative max-w-5xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
       <div class="flex items-center justify-between p-3.5 bg-slate-950 border-b border-slate-800">
         <h4 id="videoModalTitle" class="text-xs font-semibold text-slate-200">দৃশ্য ইমেজ প্রিভিউ (Full HD)</h4>
         <div class="flex items-center gap-2">
-          <a id="videoModalDownloadBtn" href="#" download="scene_image.jpg" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
+          <a id="videoModalDownloadBtn" href="#" download="scene_image.jpg"
+            class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
             <i data-lucide="download" class="w-3.5 h-3.5"></i> ডাউনলোড
           </a>
-          <button onclick="document.getElementById('videoImageModal').classList.add('hidden')" class="p-1 text-slate-400 hover:text-white">
+          <button onclick="document.getElementById('videoImageModal').classList.add('hidden')"
+            class="p-1 text-slate-400 hover:text-white">
             <i data-lucide="x" class="w-5 h-5"></i>
           </button>
         </div>
       </div>
       <div class="p-4 flex items-center justify-center overflow-auto max-h-[80vh]">
-        <img id="videoModalImage" src="" alt="Full Preview" class="max-w-full max-h-[75vh] object-contain rounded-lg shadow-lg">
+        <img id="videoModalImage" src="" alt="Full Preview"
+          class="max-w-full max-h-[75vh] object-contain rounded-lg shadow-lg">
       </div>
     </div>
   </div>
@@ -794,5 +983,5 @@ sk_... (৩য় একাউন্ট)" class="w-full bg-slate-950 border bord
 
   <script src="app.js"></script>
 </body>
-</html>
 
+</html>
